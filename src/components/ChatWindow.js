@@ -3,7 +3,6 @@ import config from '../modules/config';
 import { Info, Plus, Send, Mic } from 'lucide-react';
 import WorkerModal from './WorkerModal';
 import VoiceMessageDialog from './VoiceMessageDialog';
-import fetch from "cross-fetch";
 
 const SendMessageModal = ({ 
   show, 
