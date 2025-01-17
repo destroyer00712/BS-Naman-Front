@@ -252,17 +252,94 @@ const OrdersSidebar = ({ onOrderSelect }) => {
     }
   };
 
+
+  const sendWorkerNotification = async (workerPhone, order) => {
+    try {
+      const response = await fetch(`${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: workerPhone,
+          type: "template",
+          template: {
+            name: "worker_assignment",
+            language: {
+              code: "en"
+            },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  {
+                    type: "text",
+                    text: order.order_id
+                  },
+                  {
+                    type: "text",
+                    text: order.jewellery_details.type || "Not specified"
+                  },
+                  {
+                    type: "text",
+                    text: order.jewellery_details.weight || "Not specified"
+                  },
+                  {
+                    type: "text",
+                    text: order.jewellery_details.melting || "Not specified"
+                  },
+                  {
+                    type: "text",
+                    text: order.jewellery_details.timeline || "Not specified"
+                  },
+                  {
+                    type: "text",
+                    text: order.jewellery_details.special_instructions || "No special instructions"
+                  }
+                ]
+              }
+            ]
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send WhatsApp notification');
+      }
+
+      console.log('Worker notification sent successfully');
+    } catch (error) {
+      console.error('Error sending worker notification:', error);
+      // You might want to show an error message to the user here
+    }
+  };
+
   const handleWorkerSelect = async (workerPhone) => {
     setShowWorkerModal(false);
-    await updateOrderStatus(currentOrder.order_id, 'accepted', workerPhone);
-    onOrderSelect({ 
-      ...currentOrder, 
-      jewellery_details: { 
-        ...currentOrder.jewellery_details, 
-        status: 'accepted',
-        'worker-phone': workerPhone 
-      }
-    });
+    
+    try {
+      // First update the order status
+      await updateOrderStatus(currentOrder.order_id, 'accepted', workerPhone);
+      
+      // Then send the WhatsApp notification
+      await sendWorkerNotification(workerPhone, currentOrder);
+      
+      // Finally update the UI
+      onOrderSelect({ 
+        ...currentOrder, 
+        jewellery_details: { 
+          ...currentOrder.jewellery_details, 
+          status: 'accepted',
+          'worker-phone': workerPhone 
+        }
+      });
+    } catch (error) {
+      console.error('Error in worker assignment process:', error);
+      // You might want to show an error message to the user here
+    }
   };
 
   return (
