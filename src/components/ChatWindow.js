@@ -198,6 +198,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   const fetchMediaContent = async (mediaId) => {
     setIsLoadingMedia(true);
     try {
+      // First request remains the same
       const detailsResponse = await fetch(`${config.ENDPOINTS.WHATSAPP_MEDIA(mediaId)}`, {
         headers: {
           'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
@@ -206,12 +207,9 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       const mediaDetails = await detailsResponse.json();
       
       if (mediaDetails.url) {
-        const mediaResponse = await fetch(mediaDetails.url, {
-          headers: {
-            'User-Agent': 'PostmanRuntime/7.43.0',
-            'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
-          }
-        });
+        // Use your API domain for the proxy
+        const proxyUrl = `https://bsgold-api.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
+        const mediaResponse = await fetch(proxyUrl);
         
         if (!mediaResponse.ok) throw new Error('Failed to fetch media content');
         
