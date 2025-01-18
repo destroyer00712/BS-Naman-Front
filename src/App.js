@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import config from './modules/config';
 import OrdersSidebar from './components/OrdersSidebar';
 import ChatWindow from './components/ChatWindow';
 import OrderDetails from './components/OrderDetails';
@@ -84,37 +85,160 @@ const WorkerSelectionModal = ({ show, onClose, onConfirm, workers }) => {
   );
 };
 
-
 const App = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [showWorkerModal, setShowWorkerModal] = useState(false);
+  const [workers, setWorkers] = useState([]);
+
+  // Fetch workers when component mounts
+  useEffect(() => {
+    const fetchWorkers = async () => {
+      try {
+        const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKERS}`);
+        const data = await response.json();
+        setWorkers(data.workers);
+      } catch (error) {
+        console.error('Error fetching workers:', error);
+      }
+    };
+    fetchWorkers();
+  }, []);
+
+  const updateOrderStatus = async (orderId, status, workerPhone = null) => {
+    const updatedJewelleryDetails = {
+      ...selectedOrder.jewellery_details,
+      status: status
+    };
+
+    if (workerPhone) {
+      updatedJewelleryDetails['worker-phone'] = workerPhone;
+    }
+
+    try {
+      const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.ORDERS}/${orderId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_details: selectedOrder.client_details,
+          jewellery_details: updatedJewelleryDetails
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update order status');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating order:', error);
+      return false;
+    }
+  };
+
+  const sendWorkerNotification = async (workerPhone, order) => {
+    try {
+      const response = await fetch(`${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: workerPhone,
+          type: "template",
+          template: {
+            name: "worker_assignment",
+            language: {
+              code: "en"
+            },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  {
+                    type: "text",
+                    text: order.order_id
+                  },
+                  {
+                    type: "text",
+                    text: order.jewellery_details.type || "Not specified"
+                  },
+                  {
+                    type: "text",
+                    text: order.jewellery_details.weight || "Not specified"
+                  },
+                  {
+                    type: "text",
+                    text: order.jewellery_details.melting || "Not specified"
+                  },
+                  {
+                    type: "text",
+                    text: order.jewellery_details.timeline || "Not specified"
+                  },
+                  {
+                    type: "text",
+                    text: order.jewellery_details.special_instructions || "No special instructions"
+                  }
+                ]
+              }
+            ]
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send WhatsApp notification');
+      }
+    } catch (error) {
+      console.error('Error sending worker notification:', error);
+      throw error;
+    }
+  };
 
   const handleOrderSelect = (order) => {
     setSelectedOrder(order);
     if (order.jewellery_details.status === 'declined') {
-      // If order is declined, we'll show the declined view instead of chat
       setShowOrderDetails(false);
     }
   };
 
   const handleAcceptDeclinedOrder = (order) => {
-    // Show worker selection modal when accepting a declined order
     setShowWorkerModal(true);
   };
 
   const handleWorkerSelect = async (workerPhone) => {
     setShowWorkerModal(false);
-    // Update the order status here (you'll need to implement this)
-    // After successful update:
-    setSelectedOrder({
-      ...selectedOrder,
-      jewellery_details: {
-        ...selectedOrder.jewellery_details,
-        status: 'accepted',
-        'worker-phone': workerPhone
+    
+    try {
+      // First update the order status
+      const updateSuccess = await updateOrderStatus(selectedOrder.order_id, 'accepted', workerPhone);
+      
+      if (!updateSuccess) {
+        throw new Error('Failed to update order status');
       }
-    });
+
+      // Then send the WhatsApp notification
+      await sendWorkerNotification(workerPhone, selectedOrder);
+      
+      // Update the local state
+      setSelectedOrder({
+        ...selectedOrder,
+        jewellery_details: {
+          ...selectedOrder.jewellery_details,
+          status: 'accepted',
+          'worker-phone': workerPhone
+        }
+      });
+    } catch (error) {
+      console.error('Error in worker assignment process:', error);
+      // You might want to add error handling UI here
+      alert('Failed to assign worker. Please try again.');
+    }
   };
 
   return (
@@ -128,20 +252,17 @@ const App = () => {
       <div className="flex-grow-1 h-100 p-4">
         {selectedOrder ? (
           selectedOrder.jewellery_details.status === 'declined' ? (
-            // Show declined view if order is declined
             <DeclinedOrderView 
               order={selectedOrder}
               onAcceptClick={handleAcceptDeclinedOrder}
             />
           ) : (
-            // Show chat window for non-declined orders
             <ChatWindow 
               selectedOrder={selectedOrder}
               onInfoClick={() => setShowOrderDetails(true)}
             />
           )
         ) : (
-          // Show empty state when no order is selected
           <div className="d-flex align-items-center justify-content-center h-100">
             <div className="text-center text-muted">
               <h3>Select an order to view chat</h3>
@@ -165,7 +286,7 @@ const App = () => {
           show={showWorkerModal}
           onClose={() => setShowWorkerModal(false)}
           onConfirm={handleWorkerSelect}
-          workers={[]} // You'll need to fetch and pass workers data here
+          workers={workers}
         />
       )}
     </div>

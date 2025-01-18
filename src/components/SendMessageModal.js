@@ -12,7 +12,7 @@ const SendMessageModal = ({
   const [recipientType, setRecipientType] = useState('');
   const [isSending, setIsSending] = useState(false);
 
-  const sendWhatsAppMessage = async (phoneNumber) => {
+  const sendWhatsAppMessage = async (phoneNumber, order_id) => {
     try {
       const url = `${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}${config.WHATSAPP_ENDPOINTS.MESSAGES}`;
       const response = await fetch(url, {
@@ -27,11 +27,20 @@ const SendMessageModal = ({
           to: phoneNumber.replace(/\D/g, ''),
           type: "template",
           template: {
-            name: "update_template",
+            name: "updat_sending",
             language: { code: "en" },
             components: [{
               type: "body",
-              parameters: [{ type: "text", text: message }]
+              parameters: [
+                { 
+                  type: "text", 
+                  text: message
+                },
+                { 
+                  type: "text", 
+                  text: order_id
+                }
+              ]
             }]
           }
         })
@@ -73,7 +82,7 @@ const SendMessageModal = ({
 
     try {
       if (recipientType === 'client' || recipientType === 'both') {
-        const clientSuccess = await sendWhatsAppMessage(selectedOrder.client_details.phone);
+        const clientSuccess = await sendWhatsAppMessage(selectedOrder.client_details.phone, selectedOrder.order_id);
         success = success && clientSuccess;
       }
 

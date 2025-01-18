@@ -290,6 +290,37 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     }
   };
 
+  const formatMessageTime = (timestamp) => {
+    const messageDate = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // Format time to 12-hour format with AM/PM
+    const timeString = messageDate.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+    
+    // Check if message is from today
+    if (messageDate.toDateString() === today.toDateString()) {
+      return timeString;
+    }
+    
+    // Check if message is from yesterday
+    if (messageDate.toDateString() === yesterday.toDateString()) {
+      return `Yesterday, ${timeString}`;
+    }
+    
+    // For older messages, show the full date
+    return messageDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: messageDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+    }) + ', ' + timeString;
+  };
+
   const MediaModal = ({ media, onClose }) => (
     <div 
       className="modal d-block" 
@@ -342,7 +373,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
           <h6 className="mb-0 fw-bold">
             {isLoadingClient ? (
               <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-            ) : clientName || 'Unknown Client'}
+            ) : clientName || 'Unknown Client'} - {selectedOrder?.order_id || 'No Order ID'}
           </h6>
           <button className="btn btn-light rounded-circle" onClick={onInfoClick}>
             <Info size={20} />
@@ -358,6 +389,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
               </div>
             </div>
           ) : (
+            
             messages.map((message) => (
               <div
                 key={message.message_id}
@@ -385,7 +417,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                     </div>
                   )}
                   <small className="text-muted d-block mt-1" style={{ fontSize: '0.7rem' }}>
-                    {new Date(message.created_at).toLocaleTimeString()}
+                    {formatMessageTime(message.created_at)}
                   </small>
                 </div>
               </div>
