@@ -171,13 +171,30 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [activeMedia, setActiveMedia] = useState(null);
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
+  const [clientName, setClientName] = useState('');
+  const [isLoadingClient, setIsLoadingClient] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     if (selectedOrder) {
       fetchMessages(selectedOrder.order_id);
+      fetchClientName(selectedOrder.client_details.phone);
     }
   }, [selectedOrder]);
+
+  const fetchClientName = async (phoneNumber) => {
+    setIsLoadingClient(true);
+    try {
+      const response = await fetch(`${config.API_ROOT}/api/clients/${phoneNumber}`);
+      const data = await response.json();
+      setClientName(data.client.name);
+    } catch (error) {
+      console.error('Error fetching client name:', error);
+      setClientName('');
+    } finally {
+      setIsLoadingClient(false);
+    }
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -198,7 +215,6 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   const fetchMediaContent = async (mediaId) => {
     setIsLoadingMedia(true);
     try {
-      // First request remains the same
       const detailsResponse = await fetch(`${config.ENDPOINTS.WHATSAPP_MEDIA(mediaId)}`, {
         headers: {
           'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
@@ -207,7 +223,6 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       const mediaDetails = await detailsResponse.json();
       
       if (mediaDetails.url) {
-        // Use your API domain for the proxy
         const proxyUrl = `https://bsgold.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
         const mediaResponse = await fetch(proxyUrl);
         
@@ -324,7 +339,11 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
           >
             <Plus size={20} />
           </button>
-          <h6 className="mb-0 fw-bold">Order Chat</h6>
+          <h6 className="mb-0 fw-bold">
+            {isLoadingClient ? (
+              <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            ) : clientName || 'Unknown Client'}
+          </h6>
           <button className="btn btn-light rounded-circle" onClick={onInfoClick}>
             <Info size={20} />
           </button>
