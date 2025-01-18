@@ -208,7 +208,8 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       if (mediaDetails.url) {
         const mediaResponse = await fetch(mediaDetails.url, {
           headers: {
-            'User-Agent': 'PostmanRuntime/7.43.0'
+            'User-Agent': 'PostmanRuntime/7.43.0',
+            'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
           }
         });
         
