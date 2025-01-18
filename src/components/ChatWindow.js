@@ -208,7 +208,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       
       if (mediaDetails.url) {
         // Use your API domain for the proxy
-        const proxyUrl = `https://bsgold-api.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
+        const proxyUrl = `https://bsgold.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
         const mediaResponse = await fetch(proxyUrl);
         
         if (!mediaResponse.ok) throw new Error('Failed to fetch media content');
