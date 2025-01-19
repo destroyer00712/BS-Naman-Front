@@ -27,7 +27,7 @@ const SendMessageModal = ({
           to: phoneNumber.replace(/\D/g, ''),
           type: "template",
           template: {
-            name: "updat_sending",
+            name: "update_sending",
             language: { code: "en" },
             components: [{
               type: "body",

@@ -166,7 +166,7 @@ const App = () => {
                   },
                   {
                     type: "text",
-                    text: order.jewellery_details.type || "Not specified"
+                    text: order.jewellery_details.name || "Not specified"
                   },
                   {
                     type: "text",
