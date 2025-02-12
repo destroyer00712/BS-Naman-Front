@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import config from '../modules/config';
+import { io } from 'socket.io-client';
+import config from '../../modules/config';
+
+const socket = io(config.API_ROOT);
 
 const SendMessageModal = ({ 
   show, 
@@ -11,6 +14,15 @@ const SendMessageModal = ({
 }) => {
   const [recipientType, setRecipientType] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  useEffect(() => {
+    if (show) {
+      socket.connect();
+    }
+    return () => {
+      socket.disconnect();
+    };
+  }, [show]);
 
   const sendWhatsAppMessage = async (phoneNumber, order_id) => {
     try {
@@ -93,6 +105,7 @@ const SendMessageModal = ({
 
       if (success) {
         await saveMessage();
+        socket.emit('newMessage', { orderId: selectedOrder.order_id, message });
         onMessageSent();
         onClose();
       } else {

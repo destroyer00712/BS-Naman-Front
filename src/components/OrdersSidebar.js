@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import config from '../modules/config';
-import '../css/OrdersSidebar.css';
+import { io } from 'socket.io-client';
+import config from '../../modules/config';
+import '../../css/OrdersSidebar.css';
+
+
+const socket = io(config.SOCKET_IO_SERVER_URL);
+
+console.log(socket,'sockets')
 
 // Status Modal Component
 const StatusModal = ({ show, onClose, onResponse }) => (
@@ -132,6 +138,16 @@ const OrdersSidebar = ({ onOrderSelect }) => {
       }
     };
     fetchOrders();
+
+        // Listen for real-time order updates
+        socket.on('newOrder', (newOrder) => {
+          setOrders((prevOrders) => [newOrder, ...prevOrders]);
+        });
+    
+        return () => {
+          socket.off('newOrder');
+        };
+    
   }, []);
 
   useEffect(() => {
