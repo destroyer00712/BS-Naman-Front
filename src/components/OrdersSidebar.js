@@ -141,7 +141,7 @@ const OrdersSidebar = ({ onOrderSelect }) => {
 
         // Listen for real-time order updates
         socket.on('newOrder', (newOrder) => {
-          setOrders((prevOrders) => [newOrder, ...prevOrders]);
+          setOrders(prevOrders => [newOrder, ...prevOrders]); // Correct way to update state
         });
     
         return () => {
