@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, X, ArrowLeft } from 'lucide-react';
-import config from '../modules/config';
+import config from './config';
 
 const WorkerModal = ({ onClose }) => {
   const [workers, setWorkers] = useState([]);

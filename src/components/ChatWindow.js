@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import config from '../modules/config';
+import config from './config';
 import { Info, Plus, Send, Mic } from 'lucide-react';
 import WorkerModal from './WorkerModal';
 import VoiceMessageDialog from './VoiceMessageDialog';

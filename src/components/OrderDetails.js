@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import config from '../modules/config';
+import config from './config';
 
 const OrderDetails = ({ order, onClose }) => {
   const [workers, setWorkers] = useState([]);
