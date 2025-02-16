@@ -1,0 +1,92 @@
+/* OrdersSidebar.css */
+.sidebar-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 340px;
+    z-index: 1040;
+    background-color: white;
+    transition: transform 0.3s ease-in-out;
+  }
+  
+  .sidebar-content {
+    height: 100vh;
+    overflow: hidden;
+  }
+  
+  .orders-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .hover-lift {
+    box-shadow: 0 2px 4px rgba(0,0,0,.04);
+  }
+  
+  .hover-lift:hover {
+    box-shadow: 0 10px 20px rgba(0,0,0,.08);
+  }
+  
+  .transition-all {
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .cursor-pointer {
+    cursor: pointer;
+  }
+  
+  .input-group-text {
+    border-right: none;
+  }
+  
+  .form-control:focus {
+    box-shadow: none;
+    border-color: #dee2e6;
+  }
+  
+  .badge {
+    font-weight: 500;
+    padding: 0.5em 0.8em;
+  }
+  
+  /* Responsive Styles */
+  @media (max-width: 767.98px) {
+    .sidebar-container {
+      transform: translateX(-100%);
+      width: 100%;
+      max-width: 340px;
+    }
+  
+    .sidebar-container.sidebar-open {
+      transform: translateX(0);
+    }
+  
+    .sidebar-toggle {
+      transition: left 0.3s ease-in-out;
+    }
+  
+    .sidebar-toggle.open {
+      left: 350px;
+    }
+  }
+  
+  /* Custom Scrollbar */
+  .orders-scroll-container::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .orders-scroll-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+  
+  .orders-scroll-container::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+  }
+  
+  .orders-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }

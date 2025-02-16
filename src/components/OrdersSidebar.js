@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import config from '.././config';
-import '../../css/OrdersSidebar.css';
+import '../css/OrdersSidebar.css';
 
 
 const socket = io(config.SOCKET_IO_SERVER_URL);
