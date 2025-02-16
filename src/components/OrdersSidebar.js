@@ -4,7 +4,7 @@ import config from './config';
 import '../css/OrdersSidebar.css';
 
 
-const socket = io('https://bsgold-api.chatloom.in'); // Replace 3001 with your backend port
+const socket = io('86.38.247.227:1340'); // Replace 3001 with your backend port
 
 console.log('Socket:', socket); // Check if the socket object is created
 socket.on('connect', () => console.log('Connected to Socket.IO'));
