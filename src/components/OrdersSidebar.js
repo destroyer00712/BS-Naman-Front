@@ -5,10 +5,6 @@ import '../css/OrdersSidebar.css';
 
 
 const socket = io(config.SOCKET_IO_SERVER_URL); // Replace 3001 with your backend port
-
-console.log('Socket:', socket); // Check if the socket object is created
-socket.on('connect', () => console.log('Connected to Socket.IO'));
-socket.on('connect_error', (err) => console.error('Socket.IO connection error:', err));
 // Status Modal Component
 const StatusModal = ({ show, onClose, onResponse }) => (
   <>
@@ -138,17 +134,15 @@ const OrdersSidebar = ({ onOrderSelect }) => {
         console.error('Error fetching orders:', error);
       }
     };
-    fetchOrders();
-
-        // Listen for real-time order updates
-        socket.on('newOrder', (newOrder) => {
-          setOrders(prevOrders => [newOrder, ...prevOrders]); // Correct way to update state
-        });
-    
-        return () => {
-          socket.off('newOrder');
-        };
-    
+  
+    fetchOrders(); // Fetch initial orders
+  
+    // Poll for new orders periodically
+    const intervalId = setInterval(fetchOrders, 5000); // Poll every 5 seconds
+  
+    return () => {
+      clearInterval(intervalId); // Clear the interval when the component unmounts
+    };
   }, []);
 
   useEffect(() => {
@@ -393,7 +387,7 @@ const OrdersSidebar = ({ onOrderSelect }) => {
             </div>
           </div>
 
-          <div className="px-4 py-3 border-bottom">
+          <div className="px-4 py-3 bvnorder-bottom">
             <small className="text-muted">
               Showing {filteredOrders.length} of {orders.length} orders
             </small>
