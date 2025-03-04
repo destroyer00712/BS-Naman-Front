@@ -363,25 +363,27 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     <>
       <div className="d-flex flex-column h-100 bg-white rounded-3 shadow-sm">
         {/* Chat Header */}
-        <div className="p-3 border-bottom d-flex justify-content-between align-items-center">
-          <button 
-            className="btn btn-light rounded-circle"
-            onClick={() => setShowWorkerModal(true)}
-          >
-            <Plus size={20} />
-          </button>
-          <h6 className="mb-0 fw-bold">
-            {isLoadingClient ? (
-              <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-            ) : clientName || 'Unknown Client'} - {selectedOrder?.order_id || 'No Order ID'}
-          </h6>
-          <button className="btn btn-light rounded-circle" onClick={onInfoClick}>
-            <Info size={20} />
+        <div className="p-2 p-md-3 border-bottom d-flex justify-content-between align-items-center">
+          <div className="d-flex align-items-center gap-2">
+            <button 
+              className="btn btn-light rounded-circle btn-sm"
+              onClick={() => setShowWorkerModal(true)}
+            >
+              <Plus size={18} />
+            </button>
+            <h6 className="mb-0 fw-bold text-truncate" style={{ maxWidth: '200px' }}>
+              {isLoadingClient ? (
+                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+              ) : clientName || 'Unknown Client'} - {selectedOrder?.order_id || 'No Order ID'}
+            </h6>
+          </div>
+          <button className="btn btn-light rounded-circle btn-sm" onClick={onInfoClick}>
+            <Info size={18} />
           </button>
         </div>
 
         {/* Messages Area */}
-        <div className="flex-grow-1 overflow-auto p-3" style={{ backgroundColor: '#f8f9fa' }}>
+        <div className="flex-grow-1 overflow-auto p-2 p-md-3" style={{ backgroundColor: '#f8f9fa' }}>
           {isLoading ? (
             <div className="text-center p-3">
               <div className="spinner-border text-primary" role="status">
@@ -389,17 +391,16 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
               </div>
             </div>
           ) : (
-            
             messages.map((message) => (
               <div
                 key={message.message_id}
-                className="message-container"
+                className="message-container mb-2"
                 style={{
                   display: 'flex',
                   justifyContent: message.sender_type === 'enterprise' ? 'flex-end' : 'flex-start'
                 }}
               >
-                <div style={getMessageStyle(message.sender_type)}>
+                <div style={getMessageStyle(message.sender_type)} className="mw-75">
                   <div className="message-content">
                     {message.content}
                   </div>
@@ -427,7 +428,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         </div>
 
         {/* Message Input */}
-        <div className="border-top p-3">
+        <div className="border-top p-2 p-md-3">
           <div className="d-flex gap-2">
             <input
               type="text"

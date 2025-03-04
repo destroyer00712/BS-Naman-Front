@@ -242,14 +242,14 @@ const App = () => {
   };
 
   return (
-    <div className="d-flex vh-100">
-      {/* Sidebar */}
-      <div className="h-100" style={{ flex: '0 0 340px' }}>
+    <div className="d-flex flex-column flex-md-row vh-100">
+      {/* Sidebar - Now full width on mobile */}
+      <div className="h-100 order-2 order-md-1" style={{ flex: '0 0 340px' }}>
         <OrdersSidebar onOrderSelect={handleOrderSelect} />
       </div>
 
       {/* Main Content */}
-      <div className="flex-grow-1 h-100 p-4">
+      <div className="flex-grow-1 h-100 p-2 p-md-4 order-1 order-md-2">
         {selectedOrder ? (
           selectedOrder.jewellery_details.status === 'declined' ? (
             <DeclinedOrderView 
