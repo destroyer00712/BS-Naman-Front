@@ -31,11 +31,10 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // Update MIME type options to match WhatsApp's accepted formats
+
       let options;
       if (MediaRecorder.isTypeSupported('audio/mp4')) {
-        options = { mimeType: 'audio/mp4' };  // Clean MIME type without codecs
+        options = { mimeType: 'audio/mp4' };
       } else if (MediaRecorder.isTypeSupported('audio/mpeg')) {
         options = { mimeType: 'audio/mpeg' };
       } else if (MediaRecorder.isTypeSupported('audio/aac')) {
@@ -44,7 +43,6 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
         throw new Error('No supported audio format available');
       }
 
-      console.log('Selected recording format:', options.mimeType);
       mediaRecorderRef.current = new MediaRecorder(stream, options);
       audioChunksRef.current = [];
 
@@ -55,11 +53,11 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
       };
 
       mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { 
-          type: mediaRecorderRef.current.mimeType 
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: mediaRecorderRef.current.mimeType,
         });
         setAudioBlob(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
       };
 
       mediaRecorderRef.current.start();
@@ -77,96 +75,49 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
     }
   };
 
-  const uploadAudioToWhatsApp = async () => {
+  const sendWhatsAppMessage = async (phoneNumber, order_id, audioFileName) => {
     try {
-      const formData = new FormData();
-      
-      // Map the MIME type to appropriate extension and WhatsApp format
-      const mimeType = mediaRecorderRef.current.mimeType;
-      let fileExtension;
-      let whatsappMimeType;
-      
-      switch (mimeType.split(';')[0]) { // Remove any codec information
-        case 'audio/mp4':
-          fileExtension = 'm4a';
-          whatsappMimeType = 'audio/mp4';
-          break;
-        case 'audio/mpeg':
-          fileExtension = 'mp3';
-          whatsappMimeType = 'audio/mpeg';
-          break;
-        case 'audio/aac':
-          fileExtension = 'aac';
-          whatsappMimeType = 'audio/aac';
-          break;
-        default:
-          throw new Error('Unsupported audio format');
-      }
-
-      console.log('Uploading with WhatsApp MIME type:', whatsappMimeType);
-      
-      formData.append('file', audioBlob, `audio.${fileExtension}`);
-      formData.append('messaging_product', 'whatsapp');
-      formData.append('type', whatsappMimeType);
-
-      const uploadResponse = await fetch(`${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}${config.WHATSAPP_ENDPOINTS.MEDIA}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
-        },
-        body: formData
-      });
-
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json();
-        throw new Error(errorData.error?.message || 'Failed to upload audio');
-      }
-      
-      const responseData = await uploadResponse.json();
-      console.log('Upload response:', responseData);
-      return responseData.id;
-    } catch (error) {
-      console.error('Error uploading audio:', error);
-      throw error;
-    }
-  };
-
-  const sendWhatsAppMessage = async (phoneNumber, mediaId) => {
-    try {
-      // Add logging to debug the send process
-      console.log('Sending message to:', phoneNumber, 'with mediaId:', mediaId);
-      
-      const messageData = {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: phoneNumber.replace(/\D/g, ''),
-        type: "audio",
-        audio: { id: mediaId }
-      };
-
-      console.log('Message payload:', messageData);
+      const audioUrl = `https://yourdomain.com/viewmedia?url=/audio_messages/${order_id}/${audioFileName}&type=audio/mpeg`;
 
       const url = `${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}${config.WHATSAPP_ENDPOINTS.MESSAGES}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(messageData)
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: phoneNumber.replace(/\D/g, ''),
+          type: 'template',
+          template: {
+            name: 'update_sending',
+            language: { code: 'en' },
+            components: [
+              {
+                type: 'body',
+                parameters: [
+                  {
+                    type: 'text',
+                    text: order_id,
+                  },
+                  {
+                    type: 'text',
+                    text: audioUrl,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
       });
 
-      const responseData = await response.json();
-      console.log('WhatsApp API response:', responseData);
-
-      if (!response.ok) {
-        throw new Error(responseData.error?.message || 'WhatsApp API request failed');
-      }
-
-      return responseData.messages?.[0]?.id ? true : false;
+      if (!response.ok) throw new Error('WhatsApp API request failed');
+      return true;
     } catch (error) {
       console.error('Error sending WhatsApp message:', error);
-      throw error; // Propagate the error instead of returning false
+      return false;
     }
   };
 
@@ -175,19 +126,18 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
     setIsSending(true);
 
     try {
-      const mediaId = await uploadAudioToWhatsApp();
-      console.log('Obtained mediaId:', mediaId);
+      const orderId = selectedOrder.order_id;
+      const timestamp = Date.now();
+      const fileName = `audio-${timestamp}.mp3`;
 
       if (recipientType === 'client' || recipientType === 'both') {
         const clientPhone = selectedOrder.client_details.phone;
-        console.log('Sending to client:', clientPhone);
-        await sendWhatsAppMessage(clientPhone, mediaId);
+        await sendWhatsAppMessage(clientPhone, orderId, fileName);
       }
 
       if (recipientType === 'worker' || recipientType === 'both') {
         const workerPhone = selectedOrder.jewellery_details['worker-phone'];
-        console.log('Sending to worker:', workerPhone);
-        await sendWhatsAppMessage(workerPhone, mediaId);
+        await sendWhatsAppMessage(workerPhone, orderId, fileName);
       }
 
       onClose();
@@ -207,18 +157,13 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
         <div className="modal-content">
           <div className="modal-header">
             <h5 className="modal-title">Record Voice Message</h5>
-            <button 
-              type="button" 
-              className="btn-close" 
-              onClick={handleClose}
-              aria-label="Close"
-            ></button>
+            <button type="button" className="btn-close" onClick={handleClose} aria-label="Close"></button>
           </div>
-          
+
           <div className="modal-body">
             <div className="text-center mb-4">
               {!audioBlob ? (
-                <button 
+                <button
                   className={`btn btn-lg ${isRecording ? 'btn-danger' : 'btn-primary'} rounded-circle p-4`}
                   onClick={isRecording ? stopRecording : startRecording}
                 >
@@ -236,12 +181,11 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
             {audioBlob && (
               <div className="form-group">
                 <label htmlFor="recipientSelect" className="form-label">
-                  Choose recipient(s)
-                </label>
-                <select 
+                  Choose recipient(s)</label>
+                <select
                   id="recipientSelect"
-                  className="form-select" 
-                  value={recipientType} 
+                  className="form-select"
+                  value={recipientType}
                   onChange={(e) => setRecipientType(e.target.value)}
                 >
                   <option value="">Select recipient</option>
@@ -254,17 +198,13 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
           </div>
 
           <div className="modal-footer">
-            <button 
-              type="button" 
-              className="btn btn-secondary" 
-              onClick={handleClose}
-            >
+            <button type="button" className="btn btn-secondary" onClick={handleClose}>
               Cancel
             </button>
             {audioBlob && (
-              <button 
-                type="button" 
-                className="btn btn-primary" 
+              <button
+                type="button"
+                className="btn btn-primary"
                 onClick={handleSend}
                 disabled={!recipientType || isSending}
               >
