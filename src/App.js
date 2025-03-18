@@ -4,6 +4,7 @@ import config from './modules/config';
 import OrdersSidebar from './components/OrdersSidebar';
 import ChatWindow from './components/ChatWindow';
 import OrderDetails from './components/OrderDetails';
+import AudioViewer from './components/AudioViewer';
 
 // Declined Order View Component
 const DeclinedOrderView = ({ order, onAcceptClick }) => {
@@ -90,6 +91,7 @@ const App = () => {
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [showWorkerModal, setShowWorkerModal] = useState(false);
   const [workers, setWorkers] = useState([]);
+  const [audioUrl, setAudioUrl] = useState(null);
 
   // Fetch workers when component mounts
   useEffect(() => {
@@ -241,6 +243,12 @@ const App = () => {
     }
   };
 
+  // Example function to set the audio URL
+  const handleAudioUpload = (blob) => {
+    const url = URL.createObjectURL(blob);
+    setAudioUrl(url);
+  };
+
   return (
     <div className="d-flex flex-column flex-md-row vh-100">
       {/* Sidebar - Now full width on mobile */}
@@ -270,6 +278,8 @@ const App = () => {
             </div>
           </div>
         )}
+        {/* Audio Viewer */}
+        <AudioViewer audioUrl={audioUrl} />
       </div>
 
       {/* Order Details Modal */}
