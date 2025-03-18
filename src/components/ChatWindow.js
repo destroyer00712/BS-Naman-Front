@@ -211,7 +211,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     }
     setIsLoading(false);
   };
-
+//update
   const fetchMediaContent = async (mediaId) => {
     setIsLoadingMedia(true);
     try {
