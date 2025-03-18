@@ -5,7 +5,10 @@
   "dependencies": {
     "bootstrap": "^5.3.3",
     "cra-template": "1.2.0",
+    "fs-extra": "^11.3.0",
     "lucide-react": "^0.471.2",
+    "path": "^0.12.7",
+    "puppeteer": "^24.4.0",
     "react": "^19.0.0",
     "react-bootstrap": "^2.10.9",
     "react-dom": "^19.0.0",
