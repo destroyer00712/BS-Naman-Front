@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import config from './config';
+import config from '../modules/config';
 
 const OrderDetails = ({ order, onClose }) => {
   const [workers, setWorkers] = useState([]);
@@ -14,7 +14,7 @@ const OrderDetails = ({ order, onClose }) => {
 
   const fetchWorkers = async () => {
     try {
-      const response = await fetch('https://bsgold-api.chatloom.in/api/workers');
+      const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKERS}`);
       const data = await response.json();
       setWorkers(data.workers);
     } catch (error) {
@@ -142,7 +142,7 @@ const OrderDetails = ({ order, onClose }) => {
         }
       };
 
-      await fetch(`https://bsgold-api.chatloom.in/api/orders/${order.order_id}`, {
+      await fetch(`${config.API_ROOT}/api/orders/${order.order_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

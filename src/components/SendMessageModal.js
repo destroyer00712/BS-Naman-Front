@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { io } from 'socket.io-client';
-import config from './config';
+import config from '../modules/config';
 
 const socket = io(config.API_ROOT);
 

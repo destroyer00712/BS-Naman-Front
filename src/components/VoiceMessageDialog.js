@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import config from './config';
+import config from '../modules/config';
 import { Mic, Square, Send } from 'lucide-react';
 
 const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {

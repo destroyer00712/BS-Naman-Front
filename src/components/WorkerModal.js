@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, X, ArrowLeft } from 'lucide-react';
-import config from './config';
+import config from '../modules/config';
 
 const WorkerModal = ({ onClose }) => {
   const [workers, setWorkers] = useState([]);
@@ -29,13 +29,13 @@ const WorkerModal = ({ onClose }) => {
     e.preventDefault();
     try {
       if (isEditing) {
-        await fetch(config.ENDPOINTS.WORKER_DETAILS(formData.phone_number), {
+        await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKER_DETAILS(formData.phone_number)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: formData.name })
         });
       } else {
-        await fetch(config.ENDPOINTS.WORKERS, {
+        await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKERS}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
@@ -51,7 +51,7 @@ const WorkerModal = ({ onClose }) => {
   const handleDelete = async (phoneNumber) => {
     if (window.confirm('Are you sure you want to delete this worker?')) {
       try {
-        await fetch(config.ENDPOINTS.WORKER_DETAILS(phoneNumber), {
+        await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKER_DETAILS(phoneNumber)}`, {
           method: 'DELETE'
         });
         await fetchWorkers();
