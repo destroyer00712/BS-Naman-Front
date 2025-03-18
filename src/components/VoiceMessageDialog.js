@@ -125,19 +125,19 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
 
     try {
       const orderId = selectedOrder.order_id;
-      const timestamp = Date.now();
-      const fileName = `audio-${timestamp}.mp3`;
+      const blobUrl = URL.createObjectURL(audioBlob);
 
-      const audioUrl = URL.createObjectURL(audioBlob);
+      // Create a shareable URL using your application's routing
+      const shareableUrl = `${window.location.origin}/redirect?blobUrl=${encodeURIComponent(blobUrl)}`;
 
       if (recipientType === 'client' || recipientType === 'both') {
         const clientPhone = selectedOrder.client_details.phone;
-        await sendWhatsAppMessage(clientPhone, orderId, audioUrl);
+        await sendWhatsAppMessage(clientPhone, orderId, shareableUrl);
       }
 
       if (recipientType === 'worker' || recipientType === 'both') {
         const workerPhone = selectedOrder.jewellery_details['worker-phone'];
-        await sendWhatsAppMessage(workerPhone, orderId, audioUrl);
+        await sendWhatsAppMessage(workerPhone, orderId, shareableUrl);
       }
 
       onClose();

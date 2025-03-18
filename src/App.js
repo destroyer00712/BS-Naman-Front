@@ -5,6 +5,8 @@ import OrdersSidebar from './components/OrdersSidebar';
 import ChatWindow from './components/ChatWindow';
 import OrderDetails from './components/OrderDetails';
 import AudioViewer from './components/AudioViewer';
+import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
+import BlobRedirectPage from './components/BlobRedirectPage';
 
 // Declined Order View Component
 const DeclinedOrderView = ({ order, onAcceptClick }) => {
@@ -92,6 +94,7 @@ const App = () => {
   const [showWorkerModal, setShowWorkerModal] = useState(false);
   const [workers, setWorkers] = useState([]);
   const [audioUrl, setAudioUrl] = useState(null);
+  const [blobUrl, setBlobUrl] = useState(null);
 
   // Fetch workers when component mounts
   useEffect(() => {
@@ -247,59 +250,74 @@ const App = () => {
   const handleAudioUpload = (blob) => {
     const url = URL.createObjectURL(blob);
     setAudioUrl(url);
+    setBlobUrl(url);
   };
 
   return (
-    <div className="d-flex flex-column flex-md-row vh-100">
-      {/* Sidebar - Now full width on mobile */}
-      <div className="h-100 order-2 order-md-1" style={{ flex: '0 0 340px' }}>
-        <OrdersSidebar onOrderSelect={handleOrderSelect} />
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-grow-1 h-100 p-2 p-md-4 order-1 order-md-2">
-        {selectedOrder ? (
-          selectedOrder.jewellery_details.status === 'declined' ? (
-            <DeclinedOrderView 
-              order={selectedOrder}
-              onAcceptClick={handleAcceptDeclinedOrder}
-            />
-          ) : (
-            <ChatWindow 
-              selectedOrder={selectedOrder}
-              onInfoClick={() => setShowOrderDetails(true)}
-            />
-          )
-        ) : (
-          <div className="d-flex align-items-center justify-content-center h-100">
-            <div className="text-center text-muted">
-              <h3>Select an order to view chat</h3>
-              <p>Choose an order from the sidebar to start chatting</p>
+    <Router>
+      <Switch>
+        <Route path="/redirect" render={(props) => {
+          const params = new URLSearchParams(props.location.search);
+          const blobUrl = params.get('blobUrl');
+          return <BlobRedirectPage blobUrl={blobUrl} />;
+        }} />
+        <Route path="/" component={() => (
+          <div className="d-flex flex-column flex-md-row vh-100">
+            {/* Sidebar - Now full width on mobile */}
+            <div className="h-100 order-2 order-md-1" style={{ flex: '0 0 340px' }}>
+              <OrdersSidebar onOrderSelect={handleOrderSelect} />
             </div>
+
+            {/* Main Content */}
+            <div className="flex-grow-1 h-100 p-2 p-md-4 order-1 order-md-2">
+              {selectedOrder ? (
+                selectedOrder.jewellery_details.status === 'declined' ? (
+                  <DeclinedOrderView 
+                    order={selectedOrder}
+                    onAcceptClick={handleAcceptDeclinedOrder}
+                  />
+                ) : (
+                  <ChatWindow 
+                    selectedOrder={selectedOrder}
+                    onInfoClick={() => setShowOrderDetails(true)}
+                  />
+                )
+              ) : (
+                <div className="d-flex align-items-center justify-content-center h-100">
+                  <div className="text-center text-muted">
+                    <h3>Select an order to view chat</h3>
+                    <p>Choose an order from the sidebar to start chatting</p>
+                  </div>
+                </div>
+              )}
+              {/* Audio Viewer */}
+              <AudioViewer audioUrl={audioUrl} />
+            </div>
+
+            {/* Order Details Modal */}
+            {showOrderDetails && selectedOrder && (
+              <OrderDetails
+                order={selectedOrder}
+                onClose={() => setShowOrderDetails(false)}
+              />
+            )}
+
+            {/* Worker Selection Modal */}
+            {showWorkerModal && selectedOrder && (
+              <WorkerSelectionModal
+                show={showWorkerModal}
+                onClose={() => setShowWorkerModal(false)}
+                onConfirm={handleWorkerSelect}
+                workers={workers}
+              />
+            )}
+
+            {/* Blob Redirect Page */}
+            {blobUrl && <BlobRedirectPage blobUrl={blobUrl} />}
           </div>
-        )}
-        {/* Audio Viewer */}
-        <AudioViewer audioUrl={audioUrl} />
-      </div>
-
-      {/* Order Details Modal */}
-      {showOrderDetails && selectedOrder && (
-        <OrderDetails
-          order={selectedOrder}
-          onClose={() => setShowOrderDetails(false)}
-        />
-      )}
-
-      {/* Worker Selection Modal */}
-      {showWorkerModal && selectedOrder && (
-        <WorkerSelectionModal
-          show={showWorkerModal}
-          onClose={() => setShowWorkerModal(false)}
-          onConfirm={handleWorkerSelect}
-          workers={workers}
-        />
-      )}
-    </div>
+        )} />
+      </Switch>
+    </Router>
   );
 };
 
