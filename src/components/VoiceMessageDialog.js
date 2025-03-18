@@ -75,10 +75,8 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
     }
   };
 
-  const sendWhatsAppMessage = async (phoneNumber, order_id, audioFileName) => {
+  const sendWhatsAppMessage = async (phoneNumber, order_id, audioUrl) => {
     try {
-      const audioUrl = `https://yourdomain.com/viewmedia?url=/audio_messages/${order_id}/${audioFileName}&type=audio/mpeg`;
-
       const url = `${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}${config.WHATSAPP_ENDPOINTS.MESSAGES}`;
       const response = await fetch(url, {
         method: 'POST',
@@ -130,14 +128,16 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
       const timestamp = Date.now();
       const fileName = `audio-${timestamp}.mp3`;
 
+      const audioUrl = URL.createObjectURL(audioBlob);
+
       if (recipientType === 'client' || recipientType === 'both') {
         const clientPhone = selectedOrder.client_details.phone;
-        await sendWhatsAppMessage(clientPhone, orderId, fileName);
+        await sendWhatsAppMessage(clientPhone, orderId, audioUrl);
       }
 
       if (recipientType === 'worker' || recipientType === 'both') {
         const workerPhone = selectedOrder.jewellery_details['worker-phone'];
-        await sendWhatsAppMessage(workerPhone, orderId, fileName);
+        await sendWhatsAppMessage(workerPhone, orderId, audioUrl);
       }
 
       onClose();
@@ -170,10 +170,18 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
                   {isRecording ? <Square size={24} /> : <Mic size={24} />}
                 </button>
               ) : (
-                <audio controls className="w-100">
-                  <source src={URL.createObjectURL(audioBlob)} type={mediaRecorderRef.current.mimeType} />
-                  Your browser does not support the audio element.
-                </audio>
+                <>
+                  <audio controls className="w-100">
+                    <source src={URL.createObjectURL(audioBlob)} type={mediaRecorderRef.current.mimeType} />
+                    Your browser does not support the audio element.
+                  </audio>
+                  <button 
+                    className="btn btn-warning mt-2" 
+                    onClick={resetRecording}
+                  >
+                    Reset Recording
+                  </button>
+                </>
               )}
               {isRecording && <p className="mt-2 text-danger">Recording...</p>}
             </div>
