@@ -1,6 +1,11 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 
-const BlobRedirectPage = ({ blobUrl }) => {
+const BlobRedirectPage = () => {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const blobUrl = decodeURIComponent(params.get('blobUrl'));
+
   return (
     <div className="d-flex flex-column align-items-center justify-content-center vh-100">
       <h3>Audio Playback</h3>
