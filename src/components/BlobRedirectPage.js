@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 const BlobRedirectPage = ({ blobUrl }) => {
   useEffect(() => {
     if (blobUrl) {
+      // Redirect to the blob URL
       window.location.href = blobUrl;
     }
   }, [blobUrl]);
