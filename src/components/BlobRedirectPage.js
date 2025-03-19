@@ -1,17 +1,17 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 
 const BlobRedirectPage = ({ blobUrl }) => {
-  useEffect(() => {
-    if (blobUrl) {
-      // Redirect to the blob URL
-      window.location.href = blobUrl;
-    }
-  }, [blobUrl]);
-
   return (
-    <div>
-      <h3>Redirecting...</h3>
-      <p>If you are not redirected automatically, <a href={blobUrl}>click here</a>.</p>
+    <div className="d-flex flex-column align-items-center justify-content-center vh-100">
+      <h3>Audio Playback</h3>
+      {blobUrl ? (
+        <audio controls className="w-100">
+          <source src={blobUrl} type="audio/mp3" />
+          Your browser does not support the audio element.
+        </audio>
+      ) : (
+        <p>No audio available.</p>
+      )}
     </div>
   );
 };
