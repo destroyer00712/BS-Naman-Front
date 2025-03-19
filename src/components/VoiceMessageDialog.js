@@ -33,7 +33,9 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder, onMessageSent }) => 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       let options;
-      if (MediaRecorder.isTypeSupported('audio/mp4')) {
+      if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options = { mimeType: 'audio/webm' };
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
         options = { mimeType: 'audio/mp4' };
       } else if (MediaRecorder.isTypeSupported('audio/mpeg')) {
         options = { mimeType: 'audio/mpeg' };
@@ -60,7 +62,7 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder, onMessageSent }) => 
         stream.getTracks().forEach((track) => track.stop());
       };
 
-      mediaRecorderRef.current.start();
+      mediaRecorderRef.current.start(1000);
       setIsRecording(true);
     } catch (error) {
       console.error('Error accessing microphone:', error);
@@ -147,10 +149,10 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder, onMessageSent }) => 
 
     try {
       const orderId = selectedOrder.order_id;
-      const blobUrl = URL.createObjectURL(audioBlob);
-
-      // Create a shareable URL using your application's routing
-      const shareableUrl = `${window.location.origin}/redirect?blobUrl=${encodeURIComponent(blobUrl)}`;
+      
+      const base64Audio = await blobToBase64(audioBlob);
+      
+      const shareableUrl = `${window.location.origin}/audio-player?audio=${encodeURIComponent(base64Audio)}&type=${encodeURIComponent(audioBlob.type)}`;
       
       let success = true;
 
@@ -179,6 +181,15 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder, onMessageSent }) => 
     } finally {
       setIsSending(false);
     }
+  };
+
+  const blobToBase64 = (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   };
 
   if (!show) return null;
