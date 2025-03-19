@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import config from '../modules/config';
 import { Mic, Square, Send } from 'lucide-react';
 
-const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
+const VoiceMessageDialog = ({ show, onClose, selectedOrder, onMessageSent }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [recipientType, setRecipientType] = useState('');
@@ -119,6 +119,28 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
     }
   };
 
+  const saveMessage = async (shareableUrl) => {
+    try {
+      const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.MESSAGES}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          order_id: selectedOrder.order_id,
+          content: `Voice message: ${shareableUrl}`,
+          sender_type: 'enterprise'
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to save message');
+      return true;
+    } catch (error) {
+      console.error('Error saving message:', error);
+      return false;
+    }
+  };
+
   const handleSend = async () => {
     if (!audioBlob || !recipientType) return;
     setIsSending(true);
@@ -129,18 +151,28 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
 
       // Create a shareable URL using your application's routing
       const shareableUrl = `${window.location.origin}/redirect?blobUrl=${encodeURIComponent(blobUrl)}`;
+      
+      let success = true;
 
       if (recipientType === 'client' || recipientType === 'both') {
         const clientPhone = selectedOrder.client_details.phone;
-        await sendWhatsAppMessage(clientPhone, orderId, shareableUrl);
+        const clientSuccess = await sendWhatsAppMessage(clientPhone, orderId, shareableUrl);
+        success = success && clientSuccess;
       }
 
       if (recipientType === 'worker' || recipientType === 'both') {
         const workerPhone = selectedOrder.jewellery_details['worker-phone'];
-        await sendWhatsAppMessage(workerPhone, orderId, shareableUrl);
+        const workerSuccess = await sendWhatsAppMessage(workerPhone, orderId, shareableUrl);
+        success = success && workerSuccess;
       }
 
-      onClose();
+      if (success) {
+        await saveMessage(shareableUrl);
+        if (onMessageSent) onMessageSent();
+        onClose();
+      } else {
+        alert('Failed to send message to one or more recipients');
+      }
     } catch (error) {
       console.error('Error in send process:', error);
       alert('Error: ' + (error.message || 'An error occurred while sending the message'));
