@@ -5,7 +5,7 @@ import OrdersSidebar from './components/OrdersSidebar';
 import ChatWindow from './components/ChatWindow';
 import OrderDetails from './components/OrderDetails';
 import AudioViewer from './components/AudioViewer';
-import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import BlobRedirectPage from './components/BlobRedirectPage';
 
 // Declined Order View Component
@@ -255,13 +255,9 @@ const App = () => {
 
   return (
     <Router>
-      <Switch>
-        <Route path="/redirect" render={(props) => {
-          const params = new URLSearchParams(props.location.search);
-          const blobUrl = params.get('blobUrl');
-          return <BlobRedirectPage blobUrl={blobUrl} />;
-        }} />
-        <Route path="/" component={() => (
+      <Routes>
+        <Route path="/redirect" element={<BlobRedirectPage blobUrl={blobUrl} />} />
+        <Route path="/" element={
           <div className="d-flex flex-column flex-md-row vh-100">
             {/* Sidebar - Now full width on mobile */}
             <div className="h-100 order-2 order-md-1" style={{ flex: '0 0 340px' }}>
@@ -315,8 +311,8 @@ const App = () => {
             {/* Blob Redirect Page */}
             {blobUrl && <BlobRedirectPage blobUrl={blobUrl} />}
           </div>
-        )} />
-      </Switch>
+        } />
+      </Routes>
     </Router>
   );
 };
