@@ -23,6 +23,28 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
     audioChunksRef.current = [];
   };
 
+  const saveMessage = async (shareableUrl) => {
+    try {
+      const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.MESSAGES}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          order_id: selectedOrder.order_id,
+          content: `Voice message: ${shareableUrl}`,
+          sender_type: 'enterprise'
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to save message');
+      return true;
+    } catch (error) {
+      console.error('Error saving message:', error);
+      return false;
+    }
+  };
+
   const handleClose = () => {
     resetRecording();
     onClose();
@@ -129,6 +151,9 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
 
       // Create a shareable URL using your application's routing
       const shareableUrl = `${window.location.origin}/redirect?blobUrl=${encodeURIComponent(blobUrl)}`;
+
+      // Save the message with the link to the database
+      await saveMessage(shareableUrl);
 
       if (recipientType === 'client' || recipientType === 'both') {
         const clientPhone = selectedOrder.client_details.phone;

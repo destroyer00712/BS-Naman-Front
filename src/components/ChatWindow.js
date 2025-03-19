@@ -211,7 +211,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     }
     setIsLoading(false);
   };
-//update
+
   const fetchMediaContent = async (mediaId) => {
     setIsLoadingMedia(true);
     try {
@@ -321,6 +321,43 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     }) + ', ' + timeString;
   };
 
+  // Add a function to handle blob URL clicks
+  const handleBlobUrlClick = async (blobUrl) => {
+    setIsLoadingMedia(true);
+    try {
+      // Create a media object similar to what fetchMediaContent returns
+      const mediaData = {
+        url: blobUrl,
+        // Determine type based on URL or use a default
+        type: blobUrl.includes('audio') ? 'audio/mpeg' : 'application/octet-stream'
+      };
+      
+      setActiveMedia(mediaData);
+    } catch (error) {
+      console.error('Error handling blob URL:', error);
+      alert('Failed to load media');
+    } finally {
+      setIsLoadingMedia(false);
+    }
+  };
+
+  // Function to check if message content contains a blob URL
+  const containsBlobUrl = (content) => {
+    return typeof content === 'string' && content.includes('blobUrl=');
+  };
+
+  // Function to extract blob URL from message content
+  const extractBlobUrl = (content) => {
+    if (containsBlobUrl(content)) {
+      // For voice messages that have prefix text
+      if (content.startsWith('Voice message: ')) {
+        return content.substring('Voice message: '.length);
+      }
+      return content;
+    }
+    return null;
+  };
+
   const MediaModal = ({ media, onClose }) => (
     <div 
       className="modal d-block" 
@@ -391,38 +428,62 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
               </div>
             </div>
           ) : (
-            messages.map((message) => (
-              <div
-                key={message.message_id}
-                className="message-container mb-2"
-                style={{
-                  display: 'flex',
-                  justifyContent: message.sender_type === 'enterprise' ? 'flex-end' : 'flex-start'
-                }}
-              >
-                <div style={getMessageStyle(message.sender_type)} className="mw-75">
-                  <div className="message-content">
-                    {message.content}
-                  </div>
-                  {message.media_id && (
-                    <div className="mt-2">
-                      <button 
-                        className="btn btn-sm btn-outline-primary"
-                        onClick={() => handleMediaClick(message.media_id, message.media_type)}
-                        disabled={isLoadingMedia}
-                      >
-                        {isLoadingMedia ? (
-                          <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                        ) : 'View Media'}
-                      </button>
+            messages.map((message) => {
+              const blobUrl = extractBlobUrl(message.content);
+              
+              return (
+                <div
+                  key={message.message_id}
+                  className="message-container mb-2"
+                  style={{
+                    display: 'flex',
+                    justifyContent: message.sender_type === 'enterprise' ? 'flex-end' : 'flex-start'
+                  }}
+                >
+                  <div style={getMessageStyle(message.sender_type)} className="mw-75">
+                    <div className="message-content">
+                      {blobUrl ? 
+                        (message.content.startsWith('Voice message: ') ? 'Voice message' : 'Media message') : 
+                        message.content}
                     </div>
-                  )}
-                  <small className="text-muted d-block mt-1" style={{ fontSize: '0.7rem' }}>
-                    {formatMessageTime(message.created_at)}
-                  </small>
+                    
+                    {/* Display View Media button for blob URLs */}
+                    {blobUrl && (
+                      <div className="mt-2">
+                        <button 
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => handleBlobUrlClick(blobUrl)}
+                          disabled={isLoadingMedia}
+                        >
+                          {isLoadingMedia ? (
+                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                          ) : 'View Media'}
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* Keep existing media_id handling */}
+                    {message.media_id && (
+                      <div className="mt-2">
+                        <button 
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => handleMediaClick(message.media_id, message.media_type)}
+                          disabled={isLoadingMedia}
+                        >
+                          {isLoadingMedia ? (
+                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                          ) : 'View Media'}
+                        </button>
+                      </div>
+                    )}
+                    
+                    <small className="text-muted d-block mt-1" style={{ fontSize: '0.7rem' }}>
+                      {formatMessageTime(message.created_at)}
+                    </small>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
           <div ref={messagesEndRef} />
         </div>
