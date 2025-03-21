@@ -46,11 +46,11 @@ const SendMessageModal = ({
               parameters: [
                 { 
                   type: "text", 
-                  text: message
+                  text: message || ''
                 },
                 { 
                   type: "text", 
-                  text: order_id
+                  text: order_id || ''
                 }
               ]
             }]
