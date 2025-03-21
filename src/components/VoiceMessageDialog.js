@@ -147,22 +147,32 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
 
     try {
       const orderId = selectedOrder.order_id;
-      const blobUrl = URL.createObjectURL(audioBlob);
+      
+      // Create a FormData object to send the file
+      const formData = new FormData();
+      formData.append('file', audioBlob, `voice_${Date.now()}.mp3`);
+      
+      // Upload the file to the server
+      const uploadResponse = await fetch('http://bsgold.in/api/media/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!uploadResponse.ok) throw new Error('Failed to upload voice message');
+      
+      const { permanentUrl, fileId, fileName, mimeType } = await uploadResponse.json();
 
-      // Create a shareable URL using your application's routing
-      const shareableUrl = `${window.location.origin}/redirect?blobUrl=${encodeURIComponent(blobUrl)}`;
-
-      // Save the message with the link to the database
-      await saveMessage(shareableUrl);
+      // Save the message with the permanent URL to the database
+      await saveMessage(permanentUrl);
 
       if (recipientType === 'client' || recipientType === 'both') {
         const clientPhone = selectedOrder.client_details.phone;
-        await sendWhatsAppMessage(clientPhone, orderId, shareableUrl);
+        await sendWhatsAppMessage(clientPhone, orderId, permanentUrl);
       }
 
       if (recipientType === 'worker' || recipientType === 'both') {
         const workerPhone = selectedOrder.jewellery_details['worker-phone'];
-        await sendWhatsAppMessage(workerPhone, orderId, shareableUrl);
+        await sendWhatsAppMessage(workerPhone, orderId, permanentUrl);
       }
 
       onClose();

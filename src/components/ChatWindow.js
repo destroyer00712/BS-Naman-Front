@@ -3,6 +3,7 @@ import config from '../modules/config';
 import { Info, Plus, Send, Mic } from 'lucide-react';
 import WorkerModal from './WorkerModal';
 import VoiceMessageDialog from './VoiceMessageDialog';
+import MediaViewer from './MediaViewer';
 
 const SendMessageModal = ({ 
   show, 
@@ -173,6 +174,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
   const [clientName, setClientName] = useState('');
   const [isLoadingClient, setIsLoadingClient] = useState(false);
+  const [isForwarding, setIsForwarding] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -396,6 +398,167 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     </div>
   );
 
+  const forwardMessage = async (message, targetType) => {
+    setIsForwarding(true);
+    try {
+      const url = `${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}${config.WHATSAPP_ENDPOINTS.MESSAGES}`;
+      const phoneNumber = targetType === 'client' 
+        ? selectedOrder.client_details.phone 
+        : selectedOrder.jewellery_details['worker-phone'];
+
+      let templateName = 'update_sending';
+      let templateComponents = [{
+        type: "body",
+        parameters: [
+          { type: "text", text: selectedOrder.order_id },
+          { type: "text", text: message.content || '' }
+        ]
+      }];
+
+      // Handle media messages
+      if (message.media_id) {
+        const mediaDetails = await fetch(`${config.ENDPOINTS.WHATSAPP_MEDIA(message.media_id)}`, {
+          headers: {
+            'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
+          }
+        }).then(res => res.json());
+
+        if (mediaDetails.url) {
+          // Handle different media types
+          if (mediaDetails.mime_type.startsWith('image/')) {
+            // For images, use the image template
+            templateName = 'update_from_worker_to_client_with_image_new';
+            templateComponents = [{
+              type: "header",
+              parameters: [{
+                type: "image",
+                image: {
+                  link: mediaDetails.url
+                }
+              }]
+            }, {
+              type: "body",
+              parameters: [
+                { type: "text", text: selectedOrder.order_id },
+                { type: "text", text: message.content || '' }
+              ]
+            }];
+          } else if (mediaDetails.mime_type.startsWith('audio/') || mediaDetails.mime_type.startsWith('video/')) {
+            // For audio and video, fetch the media content and create a permanent URL
+            const proxyUrl = `https://bsgold.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
+            const mediaResponse = await fetch(proxyUrl);
+            
+            if (!mediaResponse.ok) throw new Error('Failed to fetch media content');
+            
+            const blob = await mediaResponse.blob();
+            
+            // Create a FormData object to send the file
+            const formData = new FormData();
+            formData.append('file', blob, `media_${Date.now()}.${mediaDetails.mime_type.split('/')[1]}`);
+            formData.append('type', mediaDetails.mime_type);
+            
+            // Upload the file to our server
+            const uploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
+              method: 'POST',
+              body: formData
+            });
+            
+            if (!uploadResponse.ok) throw new Error('Failed to upload media');
+            
+            const { permanentUrl } = await uploadResponse.json();
+            
+            // Use the permanent URL in the message
+            templateComponents = [{
+              type: "body",
+              parameters: [
+                { type: "text", text: selectedOrder.order_id },
+                { type: "text", text: permanentUrl }
+              ]
+            }];
+          }
+        }
+      }
+
+      // Handle voice messages and video messages
+      if (message.content.startsWith('Voice message: ') || message.content.startsWith('Video message: ')) {
+        const mediaUrl = message.content.substring(message.content.startsWith('Voice message: ') ? 'Voice message: '.length : 'Video message: '.length);
+        
+        // Fetch the media content
+        const mediaResponse = await fetch(mediaUrl);
+        if (!mediaResponse.ok) throw new Error('Failed to fetch media content');
+        
+        const blob = await mediaResponse.blob();
+        const mimeType = message.content.startsWith('Voice message: ') ? 'audio/mpeg' : 'video/mp4';
+        
+        // Create a FormData object to send the file
+        const formData = new FormData();
+        formData.append('file', blob, `media_${Date.now()}.${mimeType.split('/')[1]}`);
+        formData.append('type', mimeType);
+        
+        // Upload the file to our server
+        const uploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!uploadResponse.ok) throw new Error('Failed to upload media');
+        
+        const { permanentUrl } = await uploadResponse.json();
+        
+        // Use the permanent URL in the message
+        templateComponents = [{
+          type: "body",
+          parameters: [
+            { type: "text", text: selectedOrder.order_id },
+            { type: "text", text: permanentUrl }
+          ]
+        }];
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: phoneNumber.replace(/\D/g, ''),
+          type: "template",
+          template: {
+            name: templateName,
+            language: { code: "en" },
+            components: templateComponents
+          }
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to forward message');
+      
+      // Save the forwarded message
+      await fetch(`${config.API_ROOT}${config.ENDPOINTS.MESSAGES}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          order_id: selectedOrder.order_id,
+          content: `Forwarded: ${message.content}`,
+          sender_type: 'enterprise'
+        })
+      });
+
+      // Refresh messages
+      fetchMessages(selectedOrder.order_id);
+    } catch (error) {
+      console.error('Error forwarding message:', error);
+      alert('Failed to forward message');
+    } finally {
+      setIsForwarding(false);
+    }
+  };
+
   return (
     <>
       <div className="d-flex flex-column h-100 bg-white rounded-3 shadow-sm">
@@ -430,6 +593,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
           ) : (
             messages.map((message) => {
               const blobUrl = extractBlobUrl(message.content);
+              const isClientMessage = message.sender_type !== 'enterprise';
               
               return (
                 <div
@@ -440,12 +604,62 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                     justifyContent: message.sender_type === 'enterprise' ? 'flex-end' : 'flex-start'
                   }}
                 >
-                  <div style={getMessageStyle(message.sender_type)} className="mw-75">
+                  <div style={getMessageStyle(message.sender_type)} className="mw-75 position-relative">
                     <div className="message-content">
-                      {blobUrl ? 
-                        (message.content.startsWith('Voice message: ') ? 'Voice message' : 'Media message') : 
-                        message.content}
+                      {message.media_id ? (
+                        <MediaViewer 
+                          url={`http://bsgold.in${message.media_id}`}
+                          type={message.media_type.startsWith('audio/') ? 'audio' : 'video'}
+                        />
+                      ) : message.content.startsWith('Voice message: ') || message.content.startsWith('Video message: ') ? (
+                        <MediaViewer 
+                          url={`http://bsgold.in${message.content.substring(message.content.startsWith('Voice message: ') ? 'Voice message: '.length : 'Video message: '.length)}`}
+                          type={message.content.startsWith('Voice message: ') ? 'audio' : 'video'}
+                        />
+                      ) : (
+                        message.content
+                      )}
                     </div>
+                    
+                    {/* Forward button for client messages */}
+                    {isClientMessage && (
+                      <button
+                        className="btn btn-sm btn-light rounded-circle position-absolute"
+                        style={{ top: '5px', right: '-35px' }}
+                        onClick={() => forwardMessage(message, 'worker')}
+                        disabled={isForwarding}
+                        title="Forward to worker"
+                      >
+                        {isForwarding ? (
+                          <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M12.5 15a.5.5 0 0 1-.5-.5v-3.509L8.605 11.11a.5.5 0 0 1-1.21 0l-3.395 3.39V14.5a.5.5 0 0 1-1 0v-3.509l3.395-3.39a.5.5 0 0 1 1.21 0L12 10.991V14.5a.5.5 0 0 1-.5.5z"/>
+                            <path d="M12.5 1a.5.5 0 0 1 .5.5v3.509l3.395-3.39a.5.5 0 0 1 1.21 0l3.395 3.39V1.5a.5.5 0 0 1 1 0v3.509l-3.395 3.39a.5.5 0 0 1-1.21 0L12 5.009V1.5a.5.5 0 0 1 .5-.5z"/>
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                    
+                    {/* Forward button for worker messages */}
+                    {!isClientMessage && message.sender_type !== 'enterprise' && (
+                      <button
+                        className="btn btn-sm btn-light rounded-circle position-absolute"
+                        style={{ top: '5px', right: '-35px' }}
+                        onClick={() => forwardMessage(message, 'client')}
+                        disabled={isForwarding}
+                        title="Forward to client"
+                      >
+                        {isForwarding ? (
+                          <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M12.5 15a.5.5 0 0 1-.5-.5v-3.509L8.605 11.11a.5.5 0 0 1-1.21 0l-3.395 3.39V14.5a.5.5 0 0 1-1 0v-3.509l3.395-3.39a.5.5 0 0 1 1.21 0L12 10.991V14.5a.5.5 0 0 1-.5.5z"/>
+                            <path d="M12.5 1a.5.5 0 0 1 .5.5v3.509l3.395-3.39a.5.5 0 0 1 1.21 0l3.395 3.39V1.5a.5.5 0 0 1 1 0v3.509l-3.395 3.39a.5.5 0 0 1-1.21 0L12 5.009V1.5a.5.5 0 0 1 .5-.5z"/>
+                          </svg>
+                        )}
+                      </button>
+                    )}
                     
                     {/* Display View Media button for blob URLs */}
                     {blobUrl && (
