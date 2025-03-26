@@ -5,8 +5,51 @@ import OrdersSidebar from './components/OrdersSidebar';
 import ChatWindow from './components/ChatWindow';
 import OrderDetails from './components/OrderDetails';
 import AudioViewer from './components/AudioViewer';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import BlobRedirectPage from './components/BlobRedirectPage';
+
+// Login Component
+const LoginPage = ({ onLogin }) => {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (password === 'bsgold123') { // Static password
+      localStorage.setItem('isLoggedIn', 'true');
+      onLogin();
+    } else {
+      setError('Invalid password');
+    }
+  };
+
+  return (
+    <div className="d-flex align-items-center justify-content-center vh-100 bg-light">
+      <div className="card shadow-sm" style={{ width: '400px' }}>
+        <div className="card-body p-5">
+          <h3 className="text-center mb-4">BS Gold Login</h3>
+          <form onSubmit={handleSubmit}>
+            <div className="mb-3">
+              <label htmlFor="password" className="form-label">Password</label>
+              <input
+                type="password"
+                className="form-control"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {error && <div className="text-danger mb-3">{error}</div>}
+            <button type="submit" className="btn btn-primary w-100">
+              Login
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Declined Order View Component
 const DeclinedOrderView = ({ order, onAcceptClick }) => {
@@ -95,6 +138,13 @@ const App = () => {
   const [workers, setWorkers] = useState([]);
   const [audioUrl, setAudioUrl] = useState(null);
   const [blobUrl, setBlobUrl] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Check login status on component mount
+  useEffect(() => {
+    const loginStatus = localStorage.getItem('isLoggedIn') === 'true';
+    setIsLoggedIn(loginStatus);
+  }, []);
 
   // Fetch workers when component mounts
   useEffect(() => {
@@ -183,10 +233,6 @@ const App = () => {
                   },
                   {
                     type: "text",
-                    text: order.jewellery_details.timeline || "Not specified"
-                  },
-                  {
-                    type: "text",
                     text: order.jewellery_details.special_instructions || "No special instructions"
                   }
                 ]
@@ -253,64 +299,85 @@ const App = () => {
     setBlobUrl(url);
   };
 
+  const handleLogin = () => {
+    setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('isLoggedIn');
+    setIsLoggedIn(false);
+  };
+
   return (
     <Router>
       <Routes>
         <Route path="/redirect" element={<BlobRedirectPage blobUrl={blobUrl} />} />
         <Route path="/" element={
-          <div className="d-flex flex-column flex-md-row vh-100">
-            {/* Sidebar - Now full width on mobile */}
-            <div className="h-100 order-2 order-md-1" style={{ flex: '0 0 340px' }}>
-              <OrdersSidebar onOrderSelect={handleOrderSelect} />
-            </div>
-
-            {/* Main Content */}
-            <div className="flex-grow-1 h-100 p-2 p-md-4 order-1 order-md-2">
-              {selectedOrder ? (
-                selectedOrder.jewellery_details.status === 'declined' ? (
-                  <DeclinedOrderView 
-                    order={selectedOrder}
-                    onAcceptClick={handleAcceptDeclinedOrder}
-                  />
-                ) : (
-                  <ChatWindow 
-                    selectedOrder={selectedOrder}
-                    onInfoClick={() => setShowOrderDetails(true)}
-                  />
-                )
-              ) : (
-                <div className="d-flex align-items-center justify-content-center h-100">
-                  <div className="text-center text-muted">
-                    <h3>Select an order to view chat</h3>
-                    <p>Choose an order from the sidebar to start chatting</p>
-                  </div>
+          !isLoggedIn ? (
+            <LoginPage onLogin={handleLogin} />
+          ) : (
+            <div className="d-flex flex-column flex-md-row vh-100">
+              {/* Sidebar - Now full width on mobile */}
+              <div className="h-100 order-2 order-md-1" style={{ flex: '0 0 340px' }}>
+                <div className="d-flex justify-content-end p-2">
+                  <button 
+                    className="btn btn-outline-danger btn-sm"
+                    onClick={handleLogout}
+                  >
+                    Logout
+                  </button>
                 </div>
+                <OrdersSidebar onOrderSelect={handleOrderSelect} />
+              </div>
+
+              {/* Main Content */}
+              <div className="flex-grow-1 h-100 p-2 p-md-4 order-1 order-md-2">
+                {selectedOrder ? (
+                  selectedOrder.jewellery_details.status === 'declined' ? (
+                    <DeclinedOrderView 
+                      order={selectedOrder}
+                      onAcceptClick={handleAcceptDeclinedOrder}
+                    />
+                  ) : (
+                    <ChatWindow 
+                      selectedOrder={selectedOrder}
+                      onInfoClick={() => setShowOrderDetails(true)}
+                    />
+                  )
+                ) : (
+                  <div className="d-flex align-items-center justify-content-center h-100">
+                    <div className="text-center text-muted">
+                      <h3>Select an order to view chat</h3>
+                      <p>Choose an order from the sidebar to start chatting</p>
+                    </div>
+                  </div>
+                )}
+                {/* Audio Viewer */}
+                <AudioViewer audioUrl={audioUrl} />
+              </div>
+
+              {/* Order Details Modal */}
+              {showOrderDetails && selectedOrder && (
+                <OrderDetails
+                  order={selectedOrder}
+                  onClose={() => setShowOrderDetails(false)}
+                />
               )}
-              {/* Audio Viewer */}
-              <AudioViewer audioUrl={audioUrl} />
+
+              {/* Worker Selection Modal */}
+              {showWorkerModal && selectedOrder && (
+                <WorkerSelectionModal
+                  show={showWorkerModal}
+                  onClose={() => setShowWorkerModal(false)}
+                  onConfirm={handleWorkerSelect}
+                  workers={workers}
+                />
+              )}
+
+              {/* Blob Redirect Page */}
+              {blobUrl && <BlobRedirectPage blobUrl={blobUrl} />}
             </div>
-
-            {/* Order Details Modal */}
-            {showOrderDetails && selectedOrder && (
-              <OrderDetails
-                order={selectedOrder}
-                onClose={() => setShowOrderDetails(false)}
-              />
-            )}
-
-            {/* Worker Selection Modal */}
-            {showWorkerModal && selectedOrder && (
-              <WorkerSelectionModal
-                show={showWorkerModal}
-                onClose={() => setShowWorkerModal(false)}
-                onConfirm={handleWorkerSelect}
-                workers={workers}
-              />
-            )}
-
-            {/* Blob Redirect Page */}
-            {blobUrl && <BlobRedirectPage blobUrl={blobUrl} />}
-          </div>
+          )
         } />
       </Routes>
     </Router>
