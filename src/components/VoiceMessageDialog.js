@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import config from '../modules/config';
 import { Mic, Square, Send } from 'lucide-react';
 
@@ -148,31 +148,49 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
     try {
       const orderId = selectedOrder.order_id;
       
-      // Create a FormData object to send the file
-      const formData = new FormData();
-      formData.append('file', audioBlob, `voice_${Date.now()}.mp3`);
+      // Get the file extension based on MIME type
+      let fileExtension = '';
+      switch (mediaRecorderRef.current.mimeType) {
+        case 'audio/mp4':
+          fileExtension = '.mp4';
+          break;
+        case 'audio/mpeg':
+          fileExtension = '.mp3';
+          break;
+        case 'audio/aac':
+          fileExtension = '.aac';
+          break;
+        default:
+          fileExtension = '.mp3'; // fallback extension
+      }
       
-      // Upload the file to the server
-      const uploadResponse = await fetch('http://bsgold.in/api/media/upload', {
+      const formData = new FormData();
+      formData.append('file', audioBlob, `voice_${Date.now()}${fileExtension}`);
+      
+      const uploadResponse = await fetch('https://bsgold-api.chatloom.in/api/media/upload', {
         method: 'POST',
         body: formData
       });
       
-      if (!uploadResponse.ok) throw new Error('Failed to upload voice message');
+      if (!uploadResponse.ok) {
+        throw new Error(`HTTP error! status: ${uploadResponse.status}`);
+      }
       
       const { permanentUrl, fileId, fileName, mimeType } = await uploadResponse.json();
 
-      // Save the message with the permanent URL to the database
-      await saveMessage(permanentUrl);
+      // Use the permanentUrl directly as it already includes the extension
+      const fullAudioUrl = `https://bsgold-api.chatloom.in${permanentUrl}`;
+
+      await saveMessage(fullAudioUrl);
 
       if (recipientType === 'client' || recipientType === 'both') {
         const clientPhone = selectedOrder.client_details.phone;
-        await sendWhatsAppMessage(clientPhone, orderId, permanentUrl);
+        await sendWhatsAppMessage(clientPhone, orderId, fullAudioUrl);
       }
 
       if (recipientType === 'worker' || recipientType === 'both') {
         const workerPhone = selectedOrder.jewellery_details['worker-phone'];
-        await sendWhatsAppMessage(workerPhone, orderId, permanentUrl);
+        await sendWhatsAppMessage(workerPhone, orderId, fullAudioUrl);
       }
 
       onClose();
@@ -183,6 +201,32 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
       setIsSending(false);
     }
   };
+
+  useEffect(() => {
+    let intervalId;
+
+    const fetchMessages = async () => {
+      try {
+        const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.MESSAGES}?order_id=${selectedOrder.order_id}`);
+        if (!response.ok) throw new Error('Failed to fetch messages');
+        const messages = await response.json();
+        // Handle the messages update here (you'll need to add state management for messages)
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+      }
+    };
+
+    if (show) {
+      fetchMessages();
+      intervalId = setInterval(fetchMessages, 5000);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [show, selectedOrder.order_id]);
 
   if (!show) return null;
 

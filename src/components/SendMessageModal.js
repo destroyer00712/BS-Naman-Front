@@ -46,11 +46,11 @@ const SendMessageModal = ({
               parameters: [
                 { 
                   type: "text", 
-                  text: message || ''
+                  text: order_id || ''
                 },
                 { 
                   type: "text", 
-                  text: order_id || ''
+                  text: message || ''
                 }
               ]
             }]
@@ -99,7 +99,7 @@ const SendMessageModal = ({
       }
 
       if (recipientType === 'worker' || recipientType === 'both') {
-        const workerSuccess = await sendWhatsAppMessage(selectedOrder.jewellery_details['worker-phone']);
+        const workerSuccess = await sendWhatsAppMessage(selectedOrder.jewellery_details['worker-phone'], selectedOrder.order_id);
         success = success && workerSuccess;
       }
 

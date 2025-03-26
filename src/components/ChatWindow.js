@@ -417,65 +417,53 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
 
       // Handle media messages
       if (message.media_id) {
-        const mediaDetails = await fetch(`${config.ENDPOINTS.WHATSAPP_MEDIA(message.media_id)}`, {
-          headers: {
-            'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
-          }
-        }).then(res => res.json());
+        try {
+          // First get the media URL from WhatsApp API
+          const mediaDetails = await fetch(`${config.ENDPOINTS.WHATSAPP_MEDIA(message.media_id)}`, {
+            headers: {
+              'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
+            }
+          }).then(res => res.json());
 
-        if (mediaDetails.url) {
-          // Handle different media types
-          if (mediaDetails.mime_type.startsWith('image/')) {
-            // For images, use the image template
-            templateName = 'update_from_worker_to_client_with_image_new';
-            templateComponents = [{
-              type: "header",
-              parameters: [{
-                type: "image",
-                image: {
-                  link: mediaDetails.url
-                }
-              }]
-            }, {
-              type: "body",
-              parameters: [
-                { type: "text", text: selectedOrder.order_id },
-                { type: "text", text: message.content || '' }
-              ]
-            }];
-          } else if (mediaDetails.mime_type.startsWith('audio/') || mediaDetails.mime_type.startsWith('video/')) {
-            // For audio and video, fetch the media content and create a permanent URL
-            const proxyUrl = `https://bsgold.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
-            const mediaResponse = await fetch(proxyUrl);
-            
-            if (!mediaResponse.ok) throw new Error('Failed to fetch media content');
-            
-            const blob = await mediaResponse.blob();
-            
-            // Create a FormData object to send the file
-            const formData = new FormData();
-            formData.append('file', blob, `media_${Date.now()}.${mediaDetails.mime_type.split('/')[1]}`);
-            formData.append('type', mediaDetails.mime_type);
-            
-            // Upload the file to our server
-            const uploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
-              method: 'POST',
-              body: formData
-            });
-            
-            if (!uploadResponse.ok) throw new Error('Failed to upload media');
-            
-            const { permanentUrl } = await uploadResponse.json();
-            
-            // Use the permanent URL in the message
-            templateComponents = [{
-              type: "body",
-              parameters: [
-                { type: "text", text: selectedOrder.order_id },
-                { type: "text", text: permanentUrl }
-              ]
-            }];
+          if (!mediaDetails.url) {
+            throw new Error('No media URL found');
           }
+
+          // Use the proxy endpoint with the correct URL parameter
+          const proxyUrl = `https://bsgold.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
+          const mediaResponse = await fetch(proxyUrl);
+          
+          if (!mediaResponse.ok) throw new Error('Failed to fetch media content');
+          
+          const blob = await mediaResponse.blob();
+          const mimeType = message.media_type || mediaDetails.mime_type || 'application/octet-stream';
+          
+          // Create a FormData object to send the file
+          const formData = new FormData();
+          formData.append('file', blob, `media_${Date.now()}.${mimeType.split('/')[1]}`);
+          formData.append('type', mimeType);
+          
+          // Upload the file to our server
+          const uploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (!uploadResponse.ok) throw new Error('Failed to upload media');
+          
+          const { permanentUrl } = await uploadResponse.json();
+          
+          // Use the permanent URL in the message with the correct base URL
+          templateComponents = [{
+            type: "body",
+            parameters: [
+              { type: "text", text: selectedOrder.order_id },
+              { type: "text", text: `https://bsgold-api.chatloom.in${permanentUrl}` }
+            ]
+          }];
+        } catch (error) {
+          console.error('Error handling media:', error);
+          throw new Error('Failed to process media for forwarding');
         }
       }
 
@@ -505,12 +493,12 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         
         const { permanentUrl } = await uploadResponse.json();
         
-        // Use the permanent URL in the message
+        // Use the permanent URL in the message with the correct base URL
         templateComponents = [{
           type: "body",
           parameters: [
             { type: "text", text: selectedOrder.order_id },
-            { type: "text", text: permanentUrl }
+            { type: "text", text: `https://bsgold-api.chatloom.in${permanentUrl}` }
           ]
         }];
       }
@@ -607,17 +595,27 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                   <div style={getMessageStyle(message.sender_type)} className="mw-75 position-relative">
                     <div className="message-content">
                       {message.media_id ? (
-                        <MediaViewer 
-                          url={`http://bsgold.in${message.media_id}`}
-                          type={message.media_type.startsWith('audio/') ? 'audio' : 'video'}
-                        />
-                      ) : message.content.startsWith('Voice message: ') || message.content.startsWith('Video message: ') ? (
-                        <MediaViewer 
-                          url={`http://bsgold.in${message.content.substring(message.content.startsWith('Voice message: ') ? 'Voice message: '.length : 'Video message: '.length)}`}
-                          type={message.content.startsWith('Voice message: ') ? 'audio' : 'video'}
-                        />
+                        <button 
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => handleMediaClick(message.media_id, message.media_type)}
+                          disabled={isLoadingMedia}
+                        >
+                          {isLoadingMedia ? (
+                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                          ) : 'View Media'}
+                        </button>
+                      ) : message.content && (message.content.startsWith('Voice message: ') || message.content.startsWith('Video message: ')) ? (
+                        <button 
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => handleBlobUrlClick(message.content.substring(message.content.startsWith('Voice message: ') ? 'Voice message: '.length : 'Video message: '.length))}
+                          disabled={isLoadingMedia}
+                        >
+                          {isLoadingMedia ? (
+                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                          ) : `View ${message.content.startsWith('Voice message:') ? 'Voice' : 'Video'} Message`}
+                        </button>
                       ) : (
-                        message.content
+                        message.content || ''
                       )}
                     </div>
                     
@@ -659,36 +657,6 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                           </svg>
                         )}
                       </button>
-                    )}
-                    
-                    {/* Display View Media button for blob URLs */}
-                    {blobUrl && (
-                      <div className="mt-2">
-                        <button 
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleBlobUrlClick(blobUrl)}
-                          disabled={isLoadingMedia}
-                        >
-                          {isLoadingMedia ? (
-                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                          ) : 'View Media'}
-                        </button>
-                      </div>
-                    )}
-                    
-                    {/* Keep existing media_id handling */}
-                    {message.media_id && (
-                      <div className="mt-2">
-                        <button 
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleMediaClick(message.media_id, message.media_type)}
-                          disabled={isLoadingMedia}
-                        >
-                          {isLoadingMedia ? (
-                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                          ) : 'View Media'}
-                        </button>
-                      </div>
                     )}
                     
                     <small className="text-muted d-block mt-1" style={{ fontSize: '0.7rem' }}>
