@@ -149,7 +149,9 @@ const OrderDetails = ({ order, onClose }) => {
         body: JSON.stringify(updatedOrder)
       });
 
-      if (workerPhone !== order.jewellery_details['worker-phone']) {
+      // Only send worker notifications if the worker is actually changing
+      const isWorkerChange = workerPhone !== order.jewellery_details['worker-phone'];
+      if (isWorkerChange) {
         console.log('Worker changed, sending notifications');
         if (order.jewellery_details['worker-phone']) {
           console.log('Sending removal notification to:', order.jewellery_details['worker-phone']);
@@ -178,7 +180,8 @@ const OrderDetails = ({ order, onClose }) => {
   const handleStatusToggle = (e) => {
     const checked = e.target.checked;
     setIsCompleted(checked);
-    updateOrder(selectedWorker, checked ? 'completed' : 'accepted');
+    // Pass the current worker phone to maintain the same worker
+    updateOrder(order.jewellery_details['worker-phone'], checked ? 'completed' : 'accepted');
   };
 
   if (!order) return null;
