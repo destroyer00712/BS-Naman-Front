@@ -62,10 +62,6 @@ const OrderDetails = ({ order, onClose }) => {
                   },
                   {
                     type: "text",
-                    text: order.jewellery_details.timeline || "Not specified"
-                  },
-                  {
-                    type: "text",
                     text: order.jewellery_details.special_instructions || "No special instructions"
                   }
                 ]
@@ -248,8 +244,6 @@ const OrderDetails = ({ order, onClose }) => {
             <p className="mb-1"><strong>Name:</strong> {order.jewellery_details.name}</p>
             <p className="mb-1"><strong>Melting:</strong> {order.jewellery_details.melting}</p>
             <p className="mb-1"><strong>Weight:</strong> {order.jewellery_details.weight}</p>
-            <p className="mb-1"><strong>Timeline:</strong> {order.jewellery_details.timeline} days</p>
-            <p className="mb-1"><strong>Timeline:</strong> {order.jewellery_details.timeline} days</p>
           </div>
 
           <div>
