@@ -339,9 +339,6 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   };
 
   const handleCloseMedia = () => {
-    if (activeMedia?.url) {
-      URL.revokeObjectURL(activeMedia.url);
-    }
     setActiveMedia(null);
   };
 
@@ -442,43 +439,96 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     return null;
   };
 
-  const MediaModal = ({ media, onClose }) => (
-    <div 
-      className="modal d-block" 
-      tabIndex="-1" 
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-      onClick={onClose}
-    >
-      <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
-        <div className="modal-content">
-          <div className="modal-header">
-            <h5 className="modal-title">Media Preview</h5>
-            <button type="button" className="btn-close" onClick={onClose}></button>
-          </div>
-          <div className="modal-body text-center p-0">
-            {media.type === config.MEDIA_TYPES.AUDIO ? (
-              <audio controls className="w-100 p-3">
-                <source src={media.url} type={media.type} />
-                Your browser does not support the audio element.
-              </audio>
-            ) : media.type?.startsWith('video/') ? (
-              <video controls className="w-100">
-                <source src={media.url} type={media.type} />
-                Your browser does not support the video element.
-              </video>
-            ) : (
-              <img 
-                src={media.url} 
-                alt="Media content" 
-                className="img-fluid"
-                style={{ maxHeight: '70vh' }}
-              />
-            )}
+  const MediaModal = ({ media, onClose }) => {
+    const [mediaUrl, setMediaUrl] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+      const fetchMediaFromUrl = async () => {
+        try {
+          setIsLoading(true);
+          setError(null);
+          const response = await fetch(media.url);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch media: ${response.status}`);
+          }
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          setMediaUrl(url);
+        } catch (err) {
+          console.error('Error fetching media:', err);
+          setError(err.message);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      if (media?.url) {
+        fetchMediaFromUrl();
+      }
+
+      return () => {
+        if (mediaUrl) {
+          URL.revokeObjectURL(mediaUrl);
+        }
+      };
+    }, [media]);
+
+    return (
+      <div 
+        className="modal d-block" 
+        tabIndex="-1" 
+        style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+        onClick={onClose}
+      >
+        <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">Media Preview</h5>
+              <button type="button" className="btn-close" onClick={onClose}></button>
+            </div>
+            <div className="modal-body text-center p-0">
+              {isLoading ? (
+                <div className="p-5">
+                  <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="p-5 text-danger">
+                  Error loading media: {error}
+                </div>
+              ) : mediaUrl ? (
+                media.type === config.MEDIA_TYPES.AUDIO ? (
+                  <audio controls className="w-100 p-3">
+                    <source src={mediaUrl} type={media.type} />
+                    Your browser does not support the audio element.
+                  </audio>
+                ) : media.type?.startsWith('video/') ? (
+                  <video controls className="w-100">
+                    <source src={mediaUrl} type={media.type} />
+                    Your browser does not support the video element.
+                  </video>
+                ) : (
+                  <img 
+                    src={mediaUrl} 
+                    alt="Media content" 
+                    className="img-fluid"
+                    style={{ maxHeight: '70vh' }}
+                  />
+                )
+              ) : (
+                <div className="p-5">
+                  No media to display
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const forwardMessage = async (message, targetType) => {
     setIsForwarding(true);
