@@ -450,17 +450,10 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
           setIsLoading(true);
           setError(null);
           
-          // Extract the original WhatsApp URL from the permanent URL
-          const whatsappUrl = media.url.split('?url=')[1];
-          if (!whatsappUrl) {
-            throw new Error('Invalid media URL format');
-          }
+          // Use the URL directly since it's already in the correct format
+          console.log('Fetching media from URL:', media.url);
+          const response = await fetch(media.url);
           
-          // Use the proxy URL to fetch the media
-          const proxyUrl = `https://bsgold.chatloom.in/api/proxy-fb-media?url=${whatsappUrl}`;
-          console.log('Fetching media from proxy URL:', proxyUrl);
-          
-          const response = await fetch(proxyUrl);
           if (!response.ok) {
             throw new Error(`Failed to fetch media: ${response.status}`);
           }
