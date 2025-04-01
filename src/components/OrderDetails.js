@@ -127,6 +127,9 @@ const OrderDetails = ({ order, onClose }) => {
   const updateOrder = async (workerPhone, status) => {
     setIsLoading(true);
     try {
+      console.log('Updating order with worker:', workerPhone);
+      console.log('Current worker:', order.jewellery_details['worker-phone']);
+      
       const updatedOrder = {
         client_details: {
           phone: order.client_details.phone
@@ -147,12 +150,17 @@ const OrderDetails = ({ order, onClose }) => {
       });
 
       if (workerPhone !== order.jewellery_details['worker-phone']) {
+        console.log('Worker changed, sending notifications');
         if (order.jewellery_details['worker-phone']) {
+          console.log('Sending removal notification to:', order.jewellery_details['worker-phone']);
           await sendWorkerRemovedNotification(order.jewellery_details['worker-phone'], order);
         }
         if (workerPhone) {
+          console.log('Sending assignment notification to:', workerPhone);
           await sendWorkerNotification(workerPhone, order);
         }
+      } else {
+        console.log('No worker change detected, skipping notifications');
       }
     } catch (error) {
       console.error('Error updating order:', error);
