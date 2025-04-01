@@ -311,9 +311,9 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       const { permanentUrl } = await uploadResponse.json();
       console.log('Upload successful, permanent URL:', permanentUrl);
       
-      // Return the media data with the permanent URL
+      // Return the media data with the permanent URL using the correct base URL
       return {
-        url: permanentUrl,
+        url: `https://bsgold-api.chatloom.in${permanentUrl}`,
         type: mimeType
       };
     } catch (error) {
@@ -449,10 +449,22 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         try {
           setIsLoading(true);
           setError(null);
-          const response = await fetch(media.url);
+          
+          // Extract the original WhatsApp URL from the permanent URL
+          const whatsappUrl = media.url.split('?url=')[1];
+          if (!whatsappUrl) {
+            throw new Error('Invalid media URL format');
+          }
+          
+          // Use the proxy URL to fetch the media
+          const proxyUrl = `https://bsgold.chatloom.in/api/proxy-fb-media?url=${whatsappUrl}`;
+          console.log('Fetching media from proxy URL:', proxyUrl);
+          
+          const response = await fetch(proxyUrl);
           if (!response.ok) {
             throw new Error(`Failed to fetch media: ${response.status}`);
           }
+          
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
           setMediaUrl(url);
