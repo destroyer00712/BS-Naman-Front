@@ -227,93 +227,114 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   const fetchMediaContent = async (mediaId) => {
     setIsLoadingMedia(true);
     try {
+      // First get the media URL from WhatsApp API
       const detailsResponse = await fetch(`${config.ENDPOINTS.WHATSAPP_MEDIA(mediaId)}`, {
         headers: {
           'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
         }
       });
-      const mediaDetails = await detailsResponse.json();
       
-      if (mediaDetails.url) {
-        const proxyUrl = `https://bsgold.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
-        const mediaResponse = await fetch(proxyUrl);
-        
-        if (!mediaResponse.ok) throw new Error('Failed to fetch media content');
-        
-        const blob = await mediaResponse.blob();
-        const mimeType = mediaDetails.mime_type || 'application/octet-stream';
-        
-        // Get file extension from mime type
-        let fileExtension = '';
-        switch (mimeType) {
-          case 'image/jpeg':
-            fileExtension = '.jpg';
-            break;
-          case 'image/png':
-            fileExtension = '.png';
-            break;
-          case 'image/gif':
-            fileExtension = '.gif';
-            break;
-          case 'image/webp':
-            fileExtension = '.webp';
-            break;
-          case 'video/mp4':
-            fileExtension = '.mp4';
-            break;
-          case 'video/quicktime':
-            fileExtension = '.mov';
-            break;
-          case 'audio/mpeg':
-            fileExtension = '.mp3';
-            break;
-          case 'audio/ogg':
-            fileExtension = '.ogg';
-            break;
-          default:
-            // For unknown types, try to extract extension from mime type
-            const ext = mimeType.split('/')[1];
-            if (ext) {
-              fileExtension = `.${ext}`;
-            }
-        }
-        
-        // Create a FormData object to send the file with proper extension
-        const formData = new FormData();
-        formData.append('file', blob, `media_${Date.now()}${fileExtension}`);
-        formData.append('type', mimeType);
-        
-        // Upload the file to our server
-        const uploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (!uploadResponse.ok) throw new Error('Failed to upload media');
-        
-        const { permanentUrl } = await uploadResponse.json();
-        
-        // Use the permanent URL in the message with the correct base URL
-        return {
-          url: permanentUrl,
-          type: mimeType
-        };
+      if (!detailsResponse.ok) {
+        throw new Error(`WhatsApp API returned ${detailsResponse.status}: ${await detailsResponse.text()}`);
       }
-      return null;
+      
+      const mediaDetails = await detailsResponse.json();
+      console.log('Media details response:', mediaDetails);
+      
+      if (!mediaDetails.url) {
+        throw new Error('No media URL found in response');
+      }
+
+      // Use the proxy endpoint with the correct URL parameter
+      const proxyUrl = `https://bsgold.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
+      console.log('Fetching from proxy URL:', proxyUrl);
+      
+      const mediaResponse = await fetch(proxyUrl);
+      
+      if (!mediaResponse.ok) {
+        throw new Error(`Proxy API returned ${mediaResponse.status}: ${await mediaResponse.text()}`);
+      }
+      
+      const blob = await mediaResponse.blob();
+      const mimeType = mediaDetails.mime_type || 'application/octet-stream';
+      
+      // Get file extension from mime type
+      let fileExtension = '';
+      switch (mimeType) {
+        case 'image/jpeg':
+          fileExtension = '.jpg';
+          break;
+        case 'image/png':
+          fileExtension = '.png';
+          break;
+        case 'image/gif':
+          fileExtension = '.gif';
+          break;
+        case 'image/webp':
+          fileExtension = '.webp';
+          break;
+        case 'video/mp4':
+          fileExtension = '.mp4';
+          break;
+        case 'video/quicktime':
+          fileExtension = '.mov';
+          break;
+        case 'audio/mpeg':
+          fileExtension = '.mp3';
+          break;
+        case 'audio/ogg':
+          fileExtension = '.ogg';
+          break;
+        default:
+          // For unknown types, try to extract extension from mime type
+          const ext = mimeType.split('/')[1];
+          if (ext) {
+            fileExtension = `.${ext}`;
+          }
+      }
+      
+      // Create a FormData object to send the file with proper extension
+      const formData = new FormData();
+      formData.append('file', blob, `media_${Date.now()}${fileExtension}`);
+      formData.append('type', mimeType);
+      
+      // Upload the file to our server
+      const uploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload API returned ${uploadResponse.status}: ${await uploadResponse.text()}`);
+      }
+      
+      const { permanentUrl } = await uploadResponse.json();
+      console.log('Upload successful, permanent URL:', permanentUrl);
+      
+      // Return the media data with the permanent URL
+      return {
+        url: permanentUrl,
+        type: mimeType
+      };
     } catch (error) {
-      console.error('Error fetching media:', error);
-      return null;
+      console.error('Error in fetchMediaContent:', error);
+      throw error; // Re-throw to handle in the calling function
     } finally {
       setIsLoadingMedia(false);
     }
   };
 
   const handleMediaClick = async (mediaId, mediaType) => {
-    const mediaData = await fetchMediaContent(mediaId);
-    if (mediaData) {
-      setActiveMedia(mediaData);
-    } else {
-      alert('Failed to load media');
+    try {
+      const mediaData = await fetchMediaContent(mediaId);
+      if (mediaData) {
+        setActiveMedia(mediaData);
+      } else {
+        alert('Failed to load media: No data returned');
+      }
+    } catch (error) {
+      console.error('Error handling media click:', error);
+      alert(`Failed to load media: ${error.message}`);
     }
   };
 
