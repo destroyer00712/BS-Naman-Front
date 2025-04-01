@@ -24,7 +24,7 @@ const SendMessageModal = ({
     };
   }, [show]);
 
-  const sendWhatsAppMessage = async (phoneNumber, order_id) => {
+  const sendWhatsAppMessage = async (phoneNumber, order_id, messageContent) => {
     try {
       const url = `${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}${config.WHATSAPP_ENDPOINTS.MESSAGES}`;
       const response = await fetch(url, {
@@ -50,7 +50,7 @@ const SendMessageModal = ({
                 },
                 { 
                   type: "text", 
-                  text: message || ''
+                  text: messageContent || ''
                 }
               ]
             }]
@@ -94,12 +94,12 @@ const SendMessageModal = ({
 
     try {
       if (recipientType === 'client' || recipientType === 'both') {
-        const clientSuccess = await sendWhatsAppMessage(selectedOrder.client_details.phone, selectedOrder.order_id);
+        const clientSuccess = await sendWhatsAppMessage(selectedOrder.client_details.phone, selectedOrder.order_id, message);
         success = success && clientSuccess;
       }
 
       if (recipientType === 'worker' || recipientType === 'both') {
-        const workerSuccess = await sendWhatsAppMessage(selectedOrder.jewellery_details['worker-phone'], selectedOrder.order_id);
+        const workerSuccess = await sendWhatsAppMessage(selectedOrder.jewellery_details['worker-phone'], selectedOrder.order_id, message);
         success = success && workerSuccess;
       }
 

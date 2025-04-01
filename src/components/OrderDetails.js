@@ -151,8 +151,12 @@ const OrderDetails = ({ order, onClose }) => {
       });
 
       if (workerPhone !== order.jewellery_details['worker-phone']) {
-        await sendWorkerNotification(workerPhone, order);
-        await sendWorkerRemovedNotification(workerPhone, order);
+        if (order.jewellery_details['worker-phone']) {
+          await sendWorkerRemovedNotification(order.jewellery_details['worker-phone'], order);
+        }
+        if (workerPhone) {
+          await sendWorkerNotification(workerPhone, order);
+        }
       }
     } catch (error) {
       console.error('Error updating order:', error);
