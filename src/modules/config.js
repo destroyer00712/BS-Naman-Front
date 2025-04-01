@@ -19,9 +19,10 @@ const config = {
         MEDIA: '/media'
     },
     SENDER_COLORS: {
-        client: '#E3F2FD',
-        worker: '#F3E5F5',
-        enterprise: '#FAFAFA'
+        client: '#E3F2FD',  // Light blue for client messages
+        worker: '#F3E5F5',  // Light purple for worker messages
+        enterprise: '#E8F5E9',  // Light green for enterprise messages
+        forwarded: '#FFF3E0'  // Light orange for forwarded messages
     },
     MEDIA_TYPES: {
         AUDIO: 'audio/ogg',

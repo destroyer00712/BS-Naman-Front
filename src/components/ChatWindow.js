@@ -476,42 +476,6 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         }
       }
 
-      // Handle voice messages and video messages
-      if (message.content.startsWith('Voice message: ') || message.content.startsWith('Video message: ')) {
-        const mediaUrl = message.content.substring(message.content.startsWith('Voice message: ') ? 'Voice message: '.length : 'Video message: '.length);
-        
-        // Fetch the media content
-        const mediaResponse = await fetch(mediaUrl);
-        if (!mediaResponse.ok) throw new Error('Failed to fetch media content');
-        
-        const blob = await mediaResponse.blob();
-        const mimeType = message.content.startsWith('Voice message: ') ? 'audio/mpeg' : 'video/mp4';
-        
-        // Create a FormData object to send the file
-        const formData = new FormData();
-        formData.append('file', blob, `media_${Date.now()}.${mimeType.split('/')[1]}`);
-        formData.append('type', mimeType);
-        
-        // Upload the file to our server
-        const uploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (!uploadResponse.ok) throw new Error('Failed to upload media');
-        
-        const { permanentUrl } = await uploadResponse.json();
-        
-        // Use the permanent URL in the message with the correct base URL
-        templateComponents = [{
-          type: "body",
-          parameters: [
-            { type: "text", text: selectedOrder.order_id },
-            { type: "text", text: `https://bsgold-api.chatloom.in${permanentUrl}` }
-          ]
-        }];
-      }
-
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -533,7 +497,8 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
 
       if (!response.ok) throw new Error('Failed to forward message');
       
-      // Save the forwarded message
+      // Save the forwarded message with more context
+      const senderType = message.sender_type === 'client' ? 'Client' : 'Worker';
       await fetch(`${config.API_ROOT}${config.ENDPOINTS.MESSAGES}`, {
         method: 'POST',
         headers: {
@@ -541,8 +506,10 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         },
         body: JSON.stringify({
           order_id: selectedOrder.order_id,
-          content: `Forwarded: ${message.content}`,
-          sender_type: 'enterprise'
+          content: `Forwarded from ${senderType}: ${message.content}`,
+          sender_type: 'enterprise',
+          forwarded_from: message.sender_type,
+          original_message_id: message.message_id
         })
       });
 
@@ -591,6 +558,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
             messages.map((message) => {
               const blobUrl = extractBlobUrl(message.content);
               const isClientMessage = message.sender_type !== 'enterprise';
+              const isForwarded = message.content.startsWith('Forwarded from');
               
               return (
                 <div
@@ -601,7 +569,18 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                     justifyContent: message.sender_type === 'enterprise' ? 'flex-end' : 'flex-start'
                   }}
                 >
-                  <div style={getMessageStyle(message.sender_type)} className="mw-75 position-relative">
+                  <div 
+                    style={{
+                      ...getMessageStyle(message.sender_type),
+                      backgroundColor: isForwarded ? config.SENDER_COLORS.forwarded : config.SENDER_COLORS[message.sender_type]
+                    }} 
+                    className="mw-75 position-relative"
+                  >
+                    {isForwarded && (
+                      <div className="forwarded-preview mb-1" style={{ fontSize: '0.8rem', color: '#666' }}>
+                        Forwarded from {message.forwarded_from === 'client' ? 'Client' : 'Worker'}
+                      </div>
+                    )}
                     <div className="message-content">
                       {message.media_id ? (
                         <button 
@@ -624,7 +603,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                           ) : `View ${message.content.startsWith('Voice message:') ? 'Voice' : 'Video'} Message`}
                         </button>
                       ) : (
-                        message.content || ''
+                        message.content.replace(/^Forwarded from (Client|Worker): /, '')
                       )}
                     </div>
                     
