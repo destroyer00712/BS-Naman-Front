@@ -184,6 +184,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   const [clientName, setClientName] = useState('');
   const [isLoadingClient, setIsLoadingClient] = useState(false);
   const [isForwarding, setIsForwarding] = useState(false);
+  const [expandedForwardedMessage, setExpandedForwardedMessage] = useState(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -523,6 +524,10 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     }
   };
 
+  const handleForwardedMessageClick = (message) => {
+    setExpandedForwardedMessage(expandedForwardedMessage === message.message_id ? null : message.message_id);
+  };
+
   return (
     <>
       <div className="d-flex flex-column h-100 bg-white rounded-3 shadow-sm">
@@ -557,7 +562,8 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
           ) : (
             messages.map((message) => {
               const blobUrl = extractBlobUrl(message.content);
-              const isClientMessage = message.sender_type !== 'enterprise';
+              const isClientMessage = message.sender_type === 'client';
+              const isWorkerMessage = message.sender_type === 'worker';
               const isForwarded = message.content.startsWith('Forwarded from');
               
               return (
@@ -572,13 +578,50 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                   <div 
                     style={{
                       ...getMessageStyle(message.sender_type),
-                      backgroundColor: isForwarded ? config.SENDER_COLORS.forwarded : config.SENDER_COLORS[message.sender_type]
+                      backgroundColor: isForwarded ? config.SENDER_COLORS.forwarded : 
+                        isClientMessage ? config.SENDER_COLORS.client :
+                        isWorkerMessage ? config.SENDER_COLORS.worker :
+                        config.SENDER_COLORS.enterprise
                     }} 
                     className="mw-75 position-relative"
                   >
                     {isForwarded && (
-                      <div className="forwarded-preview mb-1" style={{ fontSize: '0.8rem', color: '#666' }}>
-                        Forwarded from {message.forwarded_from === 'client' ? 'Client' : 'Worker'}
+                      <div 
+                        className="forwarded-preview mb-1" 
+                        style={{ 
+                          fontSize: '0.8rem', 
+                          color: '#666',
+                          cursor: 'pointer',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          backgroundColor: 'rgba(0,0,0,0.05)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}
+                        onClick={() => handleForwardedMessageClick(message)}
+                      >
+                        <span>
+                          Forwarded from {message.forwarded_from === 'client' ? 'Client' : 'Worker'}
+                        </span>
+                        <span className="ms-2">
+                          {expandedForwardedMessage === message.message_id ? '▼' : '▶'}
+                        </span>
+                      </div>
+                    )}
+                    {isForwarded && expandedForwardedMessage === message.message_id && (
+                      <div 
+                        className="original-message mb-2 p-2" 
+                        style={{ 
+                          backgroundColor: 'rgba(0,0,0,0.05)',
+                          borderRadius: '4px',
+                          fontSize: '0.9rem'
+                        }}
+                      >
+                        <div className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>
+                          Original Message:
+                        </div>
+                        {message.content.replace(/^Forwarded from (Client|Worker): /, '')}
                       </div>
                     )}
                     <div className="message-content">

@@ -20,7 +20,7 @@ const config = {
     },
     SENDER_COLORS: {
         client: '#E3F2FD',  // Light blue for client messages
-        worker: '#F3E5F5',  // Light purple for worker messages
+        worker: '#FFE0B2',  // Light orange for worker messages
         enterprise: '#E8F5E9',  // Light green for enterprise messages
         forwarded: '#FFF3E0'  // Light orange for forwarded messages
     },
