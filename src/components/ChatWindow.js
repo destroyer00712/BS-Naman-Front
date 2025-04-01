@@ -241,11 +241,62 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         if (!mediaResponse.ok) throw new Error('Failed to fetch media content');
         
         const blob = await mediaResponse.blob();
-        const objectUrl = URL.createObjectURL(blob);
+        const mimeType = mediaDetails.mime_type || 'application/octet-stream';
         
+        // Get file extension from mime type
+        let fileExtension = '';
+        switch (mimeType) {
+          case 'image/jpeg':
+            fileExtension = '.jpg';
+            break;
+          case 'image/png':
+            fileExtension = '.png';
+            break;
+          case 'image/gif':
+            fileExtension = '.gif';
+            break;
+          case 'image/webp':
+            fileExtension = '.webp';
+            break;
+          case 'video/mp4':
+            fileExtension = '.mp4';
+            break;
+          case 'video/quicktime':
+            fileExtension = '.mov';
+            break;
+          case 'audio/mpeg':
+            fileExtension = '.mp3';
+            break;
+          case 'audio/ogg':
+            fileExtension = '.ogg';
+            break;
+          default:
+            // For unknown types, try to extract extension from mime type
+            const ext = mimeType.split('/')[1];
+            if (ext) {
+              fileExtension = `.${ext}`;
+            }
+        }
+        
+        // Create a FormData object to send the file with proper extension
+        const formData = new FormData();
+        formData.append('file', blob, `media_${Date.now()}${fileExtension}`);
+        formData.append('type', mimeType);
+        
+        // Upload the file to our server
+        const uploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!uploadResponse.ok) throw new Error('Failed to upload media');
+        
+        const { permanentUrl } = await uploadResponse.json();
+        
+        // Use the permanent URL in the message with the correct base URL
         return {
-          url: objectUrl,
-          type: mediaDetails.mime_type
+          url: permanentUrl,
+          type: mimeType
         };
       }
       return null;
@@ -448,9 +499,44 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
           const blob = await mediaResponse.blob();
           const mimeType = message.media_type || mediaDetails.mime_type || 'application/octet-stream';
           
-          // Create a FormData object to send the file
+          // Get file extension from mime type
+          let fileExtension = '';
+          switch (mimeType) {
+            case 'image/jpeg':
+              fileExtension = '.jpg';
+              break;
+            case 'image/png':
+              fileExtension = '.png';
+              break;
+            case 'image/gif':
+              fileExtension = '.gif';
+              break;
+            case 'image/webp':
+              fileExtension = '.webp';
+              break;
+            case 'video/mp4':
+              fileExtension = '.mp4';
+              break;
+            case 'video/quicktime':
+              fileExtension = '.mov';
+              break;
+            case 'audio/mpeg':
+              fileExtension = '.mp3';
+              break;
+            case 'audio/ogg':
+              fileExtension = '.ogg';
+              break;
+            default:
+              // For unknown types, try to extract extension from mime type
+              const ext = mimeType.split('/')[1];
+              if (ext) {
+                fileExtension = `.${ext}`;
+              }
+          }
+          
+          // Create a FormData object to send the file with proper extension
           const formData = new FormData();
-          formData.append('file', blob, `media_${Date.now()}.${mimeType.split('/')[1]}`);
+          formData.append('file', blob, `media_${Date.now()}${fileExtension}`);
           formData.append('type', mimeType);
           
           // Upload the file to our server
