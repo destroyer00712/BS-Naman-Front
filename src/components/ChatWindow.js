@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import config from '../modules/config';
-import { Info, Plus, Send, Mic } from 'lucide-react';
+import { Info, Plus, Send, Mic, Forward } from 'lucide-react';
 import WorkerModal from './WorkerModal';
 import VoiceMessageDialog from './VoiceMessageDialog';
 import MediaViewer from './MediaViewer';
@@ -788,25 +788,43 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                     )}
                     <div className="message-content">
                       {message.media_id ? (
-                        <button 
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleMediaClick(message.media_id, message.media_type)}
-                          disabled={isLoadingMedia}
-                        >
-                          {isLoadingMedia ? (
-                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                          ) : 'View Media'}
-                        </button>
+                        <div>
+                          <div className="mb-2">
+                            <button 
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => handleMediaClick(message.media_id, message.media_type)}
+                              disabled={isLoadingMedia}
+                            >
+                              {isLoadingMedia ? (
+                                <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                              ) : 'View Media'}
+                            </button>
+                          </div>
+                          {message.content && (
+                            <div className="text-muted small">
+                              {message.content}
+                            </div>
+                          )}
+                        </div>
                       ) : message.content && (message.content.startsWith('Voice message: ') || message.content.startsWith('Video message: ')) ? (
-                        <button 
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleBlobUrlClick(message.content.substring(message.content.startsWith('Voice message: ') ? 'Voice message: '.length : 'Video message: '.length))}
-                          disabled={isLoadingMedia}
-                        >
-                          {isLoadingMedia ? (
-                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                          ) : `View ${message.content.startsWith('Voice message:') ? 'Voice' : 'Video'} Message`}
-                        </button>
+                        <div>
+                          <div className="mb-2">
+                            <button 
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => handleBlobUrlClick(message.content.substring(message.content.startsWith('Voice message: ') ? 'Voice message: '.length : 'Video message: '.length))}
+                              disabled={isLoadingMedia}
+                            >
+                              {isLoadingMedia ? (
+                                <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                              ) : `View ${message.content.startsWith('Voice message:') ? 'Voice' : 'Video'} Message`}
+                            </button>
+                          </div>
+                          {message.recipients && (
+                            <div className="text-muted small">
+                              Sent to: {message.recipients.join(', ')}
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         message.content.replace(/^Forwarded from (Client|Worker): /, '')
                       )}
@@ -824,10 +842,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                         {isForwarding ? (
                           <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                         ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M12.5 15a.5.5 0 0 1-.5-.5v-3.509L8.605 11.11a.5.5 0 0 1-1.21 0l-3.395 3.39V14.5a.5.5 0 0 1-1 0v-3.509l3.395-3.39a.5.5 0 0 1 1.21 0L12 10.991V14.5a.5.5 0 0 1-.5.5z"/>
-                            <path d="M12.5 1a.5.5 0 0 1 .5.5v3.509l3.395-3.39a.5.5 0 0 1 1.21 0l3.395 3.39V1.5a.5.5 0 0 1 1 0v3.509l-3.395 3.39a.5.5 0 0 1-1.21 0L12 5.009V1.5a.5.5 0 0 1 .5-.5z"/>
-                          </svg>
+                          <Forward size={16} />
                         )}
                       </button>
                     )}
@@ -844,10 +859,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                         {isForwarding ? (
                           <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                         ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M12.5 15a.5.5 0 0 1-.5-.5v-3.509L8.605 11.11a.5.5 0 0 1-1.21 0l-3.395 3.39V14.5a.5.5 0 0 1-1 0v-3.509l3.395-3.39a.5.5 0 0 1 1.21 0L12 10.991V14.5a.5.5 0 0 1-.5.5z"/>
-                            <path d="M12.5 1a.5.5 0 0 1 .5.5v3.509l3.395-3.39a.5.5 0 0 1 1.21 0l3.395 3.39V1.5a.5.5 0 0 1 1 0v3.509l-3.395 3.39a.5.5 0 0 1-1.21 0L12 5.009V1.5a.5.5 0 0 1 .5-.5z"/>
-                          </svg>
+                          <Forward size={16} />
                         )}
                       </button>
                     )}

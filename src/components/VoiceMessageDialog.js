@@ -25,6 +25,14 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
 
   const saveMessage = async (shareableUrl) => {
     try {
+      const recipients = [];
+      if (recipientType === 'client' || recipientType === 'both') {
+        recipients.push('Client');
+      }
+      if (recipientType === 'worker' || recipientType === 'both') {
+        recipients.push('Worker');
+      }
+
       const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.MESSAGES}`, {
         method: 'POST',
         headers: {
@@ -33,7 +41,8 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
         body: JSON.stringify({
           order_id: selectedOrder.order_id,
           content: `Voice message: ${shareableUrl}`,
-          sender_type: 'enterprise'
+          sender_type: 'enterprise',
+          recipients: recipients
         })
       });
 

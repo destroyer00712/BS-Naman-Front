@@ -255,6 +255,7 @@ const OrderDetails = ({ order, onClose }) => {
             <p className="mb-1"><strong>Name:</strong> {order.jewellery_details.name}</p>
             <p className="mb-1"><strong>Melting:</strong> {order.jewellery_details.melting}</p>
             <p className="mb-1"><strong>Weight:</strong> {order.jewellery_details.weight}</p>
+            <p className="mb-1"><strong>Special Instructions:</strong> {order.jewellery_details.special}</p>
           </div>
 
           <div>

@@ -304,7 +304,7 @@ const OrdersSidebar = ({ onOrderSelect }) => {
                   },
                   {
                     type: "text",
-                    text: order.jewellery_details.special_instructions || "No special instructions"
+                    text: order.jewellery_details.special || "No special instructions"
                   }
                 ]
               }
