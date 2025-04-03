@@ -46,7 +46,7 @@ const SendMessageModal = ({
               parameters: [
                 { 
                   type: "text", 
-                  text: order_id || ''
+                  text: `${selectedOrder.jewellery_details.name || 'Not specified'}-${order_id || ''}`
                 },
                 { 
                   type: "text", 
@@ -68,6 +68,14 @@ const SendMessageModal = ({
 
   const saveMessage = async () => {
     try {
+      const recipients = [];
+      if (recipientType === 'client' || recipientType === 'both') {
+        recipients.push('Client');
+      }
+      if (recipientType === 'worker' || recipientType === 'both') {
+        recipients.push('Worker');
+      }
+
       const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.MESSAGES}`, {
         method: 'POST',
         headers: {
@@ -76,7 +84,8 @@ const SendMessageModal = ({
         body: JSON.stringify({
           order_id: selectedOrder.order_id,
           content: message,
-          sender_type: 'enterprise'
+          sender_type: 'enterprise',
+          recipients: recipients
         })
       });
 

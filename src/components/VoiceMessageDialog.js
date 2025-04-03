@@ -129,7 +129,7 @@ const VoiceMessageDialog = ({ show, onClose, selectedOrder }) => {
                 parameters: [
                   {
                     type: 'text',
-                    text: order_id,
+                    text: `${selectedOrder.jewellery_details.name || 'Not specified'}-${order_id}`,
                   },
                   {
                     type: 'text',

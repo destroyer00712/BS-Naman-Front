@@ -37,7 +37,7 @@ const SendMessageModal = ({
               parameters: [
                 { 
                   type: "text", 
-                  text: selectedOrder.order_id || ''
+                  text: `${selectedOrder.jewellery_details.name || 'Not specified'}-${selectedOrder.order_id || ''}`
                 },
                 { 
                   type: "text", 
@@ -185,6 +185,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   const [isLoadingClient, setIsLoadingClient] = useState(false);
   const [isForwarding, setIsForwarding] = useState(false);
   const [expandedForwardedMessage, setExpandedForwardedMessage] = useState(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -192,6 +193,28 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       fetchMessages(selectedOrder.order_id);
       fetchClientName(selectedOrder.client_details.phone);
     }
+  }, [selectedOrder]);
+
+  // Add polling for messages
+  useEffect(() => {
+    let intervalId;
+    
+    if (selectedOrder) {
+      // Initial fetch
+      fetchMessages(selectedOrder.order_id);
+      
+      // Set up polling every 5 seconds
+      intervalId = setInterval(() => {
+        fetchMessages(selectedOrder.order_id);
+      }, 5000);
+    }
+    
+    // Cleanup interval on unmount or when selectedOrder changes
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [selectedOrder]);
 
   const fetchClientName = async (phoneNumber) => {
@@ -687,6 +710,18 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   };
 
   const handleForwardedMessageClick = (message) => {
+    if (message.original_message_id) {
+      setHighlightedMessageId(message.original_message_id);
+      // Scroll to the original message
+      const originalMessageElement = document.getElementById(`message-${message.original_message_id}`);
+      if (originalMessageElement) {
+        originalMessageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Remove highlight after 3 seconds
+        setTimeout(() => {
+          setHighlightedMessageId(null);
+        }, 3000);
+      }
+    }
     setExpandedForwardedMessage(expandedForwardedMessage === message.message_id ? null : message.message_id);
   };
 
@@ -727,14 +762,21 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
               const isClientMessage = message.sender_type === 'client';
               const isWorkerMessage = message.sender_type === 'worker';
               const isForwarded = message.content.startsWith('Forwarded from');
+              const isHighlighted = message.message_id === highlightedMessageId;
               
               return (
                 <div
                   key={message.message_id}
+                  id={`message-${message.message_id}`}
                   className="message-container mb-2"
                   style={{
                     display: 'flex',
-                    justifyContent: message.sender_type === 'enterprise' ? 'flex-end' : 'flex-start'
+                    justifyContent: message.sender_type === 'enterprise' ? 'flex-end' : 'flex-start',
+                    transition: 'all 0.3s ease',
+                    transform: isHighlighted ? 'scale(1.02)' : 'scale(1)',
+                    backgroundColor: isHighlighted ? 'rgba(255, 255, 0, 0.1)' : 'transparent',
+                    borderRadius: '8px',
+                    padding: isHighlighted ? '4px' : '0'
                   }}
                 >
                   <div 
@@ -819,14 +861,16 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                               ) : `View ${message.content.startsWith('Voice message:') ? 'Voice' : 'Video'} Message`}
                             </button>
                           </div>
-                          {message.recipients && (
-                            <div className="text-muted small">
-                              Sent to: {message.recipients.join(', ')}
-                            </div>
-                          )}
                         </div>
                       ) : (
                         message.content.replace(/^Forwarded from (Client|Worker): /, '')
+                      )}
+                      
+                      {/* Show recipient information for all messages */}
+                      {message.recipients && message.recipients.length > 0 && (
+                        <div className="text-muted small mt-1">
+                          Sent to: {message.recipients.join(', ')}
+                        </div>
                       )}
                     </div>
                     

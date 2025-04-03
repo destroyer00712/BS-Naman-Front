@@ -124,6 +124,53 @@ const OrderDetails = ({ order, onClose }) => {
     }
   };
 
+  const sendCompletionNotification = async (phone, order) => {
+    try {
+      const response = await fetch(`${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: phone,
+          type: "template",
+          template: {
+            name: "order_completed",
+            language: {
+              code: "en"
+            },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  {
+                    type: "text",
+                    text: order.order_id
+                  },
+                  {
+                    type: "text",
+                    text: order.jewellery_details.name || "Not specified"
+                  }
+                ]
+              }
+            ]
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send WhatsApp notification');
+      }
+
+      console.log('Completion notification sent successfully');
+    } catch (error) {
+      console.error('Error sending completion notification:', error);
+    }
+  };
+
   const updateOrder = async (workerPhone, status) => {
     setIsLoading(true);
     try {
@@ -177,11 +224,29 @@ const OrderDetails = ({ order, onClose }) => {
     updateOrder(value, isCompleted ? 'completed' : 'accepted');
   };
 
-  const handleStatusToggle = (e) => {
+  const handleStatusToggle = async (e) => {
     const checked = e.target.checked;
     setIsCompleted(checked);
-    // Pass the current worker phone to maintain the same worker
-    updateOrder(order.jewellery_details['worker-phone'], checked ? 'completed' : 'accepted');
+    
+    try {
+      // Update the order status
+      await updateOrder(order.jewellery_details['worker-phone'], checked ? 'completed' : 'accepted');
+      
+      // If order is being marked as completed, send notifications
+      if (checked) {
+        // Send notification to customer
+        await sendCompletionNotification(order.client_details.phone, order);
+        
+        // Send notification to worker if there is one assigned
+        if (order.jewellery_details['worker-phone']) {
+          await sendCompletionNotification(order.jewellery_details['worker-phone'], order);
+        }
+      }
+    } catch (error) {
+      console.error('Error in status update process:', error);
+      // Revert the checkbox state if there was an error
+      setIsCompleted(!checked);
+    }
   };
 
   if (!order) return null;
