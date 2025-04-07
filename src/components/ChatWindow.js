@@ -4,6 +4,7 @@ import { Info, Plus, Send, Mic, Forward } from 'lucide-react';
 import WorkerModal from './WorkerModal';
 import VoiceMessageDialog from './VoiceMessageDialog';
 import MediaViewer from './MediaViewer';
+import 'bootstrap-icons/font/bootstrap-icons.css';
 
 const SendMessageModal = ({ 
   show, 
@@ -195,7 +196,6 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     }
   }, [selectedOrder]);
 
-  // Add polling for messages
   useEffect(() => {
     let intervalId;
     
@@ -204,19 +204,35 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       fetchMessages(selectedOrder.order_id);
       
       // Set up polling every 5 seconds
-      intervalId = setInterval(() => {
-        // Silently fetch messages without showing loading indicator
-        fetchMessages(selectedOrder.order_id);
+      intervalId = setInterval(async () => {
+        try {
+          const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.ORDER_MESSAGES(selectedOrder.order_id)}`);
+          const data = await response.json();
+          
+          // Only update messages and scroll if there are new messages
+          if (JSON.stringify(data.messages) !== JSON.stringify(messages)) {
+            const hasNewMessages = data.messages.length > messages.length;
+            setMessages(data.messages);
+            
+            // Only scroll to bottom if there are new messages
+            if (hasNewMessages) {
+              setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+              }, 100);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching messages:', error);
+        }
       }, 5000);
     }
     
-    // Cleanup interval on unmount or when selectedOrder changes
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
       }
     };
-  }, [selectedOrder]);
+  }, [selectedOrder, messages]);
 
   const fetchClientName = async (phoneNumber) => {
     setIsLoadingClient(true);
@@ -744,7 +760,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
 
   return (
     <>
-      <div className="d-flex flex-column h-100 bg-white rounded-3 shadow-sm">
+      <div className="d-flex flex-column vh-100 bg-white rounded-3 shadow-sm">
         {/* Chat Header */}
         <div className="p-2 p-md-3 border-bottom d-flex justify-content-between align-items-center">
           <div className="d-flex align-items-center gap-2">
