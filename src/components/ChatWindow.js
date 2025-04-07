@@ -205,6 +205,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       
       // Set up polling every 5 seconds
       intervalId = setInterval(() => {
+        // Silently fetch messages without showing loading indicator
         fetchMessages(selectedOrder.order_id);
       }, 5000);
     }
@@ -236,15 +237,31 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   }, [messages]);
 
   const fetchMessages = async (orderId) => {
-    setIsLoading(true);
     try {
       const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.ORDER_MESSAGES(orderId)}`);
       const data = await response.json();
-      setMessages(data.messages);
+      
+      // Only update messages if there are actual changes
+      if (JSON.stringify(data.messages) !== JSON.stringify(messages)) {
+        // Only show loading indicator on initial load or when there are new messages
+        if (messages.length === 0 || data.messages.length > messages.length) {
+          setIsLoading(true);
+        }
+        
+        setMessages(data.messages);
+        
+        // Scroll to bottom only if there are new messages
+        if (data.messages.length > messages.length) {
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }, 100);
+        }
+      }
     } catch (error) {
       console.error('Error fetching messages:', error);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const fetchMediaContent = async (mediaId) => {

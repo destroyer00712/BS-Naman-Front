@@ -356,7 +356,11 @@ const OrdersSidebar = ({ onOrderSelect }) => {
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
         style={{ left: '10px', top: '10px', zIndex: 1053 }}
       >
-        <i className={`bi bi-${isSidebarOpen ? 'x-lg' : 'list'}`}></i>
+        {isSidebarOpen ? (
+          <i className="bi bi-x-lg"></i>
+        ) : (
+          <i className="bi bi-list"></i>
+        )}
       </button>
 
       <div 
