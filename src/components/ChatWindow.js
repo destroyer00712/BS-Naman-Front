@@ -762,7 +762,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     <>
       <div className="d-flex flex-column vh-100 bg-white rounded-3 shadow-sm">
         {/* Chat Header */}
-        <div className="p-2 p-md-3 border-bottom d-flex justify-content-between align-items-center">
+        <div className="p-2 p-md-3 border-bottom d-flex justify-content-between align-items-center" style={{ marginTop: '60px' }}>
           <div className="d-flex align-items-center gap-2">
             <button 
               className="btn btn-light rounded-circle btn-sm"
@@ -782,7 +782,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         </div>
 
         {/* Messages Area */}
-        <div className="flex-grow-1 overflow-auto p-2 p-md-3" style={{ backgroundColor: '#f8f9fa' }}>
+        <div className="flex-grow-1 overflow-auto p-2 p-md-3" style={{ backgroundColor: '#f8f9fa', height: 'calc(100vh - 180px)' }}>
           {isLoading ? (
             <div className="text-center p-3">
               <div className="spinner-border text-primary" role="status">
