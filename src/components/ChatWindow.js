@@ -762,7 +762,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     <>
       <div className="d-flex flex-column vh-100 bg-white rounded-3 shadow-sm">
         {/* Chat Header */}
-        <div className="p-2 p-md-3 border-bottom d-flex justify-content-between align-items-center" style={{ marginTop: '60px' }}>
+        <div className="p-2 p-md-3 border-bottom d-flex justify-content-between align-items-center" style={{ marginTop: '60px', backgroundColor: '#f8f9fa' }}>
           <div className="d-flex align-items-center gap-2">
             <button 
               className="btn btn-light rounded-circle btn-sm"
@@ -770,11 +770,16 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
             >
               <Plus size={18} />
             </button>
-            <h6 className="mb-0 fw-bold text-truncate" style={{ maxWidth: '200px' }}>
-              {isLoadingClient ? (
-                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-              ) : clientName || 'Unknown Client'} - {selectedOrder?.order_id || 'No Order ID'}
-            </h6>
+            <div className="d-flex flex-column">
+              <h6 className="mb-0 fw-bold text-primary">
+                {isLoadingClient ? (
+                  <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                ) : clientName || 'Unknown Client'}
+              </h6>
+              <small className="text-muted">
+                Order ID: {selectedOrder?.order_id || 'No Order ID'}
+              </small>
+            </div>
           </div>
           <button className="btn btn-light rounded-circle btn-sm" onClick={onInfoClick}>
             <Info size={18} />

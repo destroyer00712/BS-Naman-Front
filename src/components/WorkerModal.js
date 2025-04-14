@@ -6,7 +6,7 @@ const WorkerModal = ({ onClose }) => {
   const [workers, setWorkers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', phone_number: '' });
+  const [formData, setFormData] = useState({ name: '', phone_numbers: [''] });
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
@@ -29,16 +29,22 @@ const WorkerModal = ({ onClose }) => {
     e.preventDefault();
     try {
       if (isEditing) {
-        await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKER_DETAILS(formData.phone_number)}`, {
+        await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKER_DETAILS(formData.phone_numbers[0])}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: formData.name })
+          body: JSON.stringify({ 
+            name: formData.name,
+            phone_numbers: formData.phone_numbers.filter(num => num.trim() !== '')
+          })
         });
       } else {
         await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKERS}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
+          body: JSON.stringify({
+            name: formData.name,
+            phone_numbers: formData.phone_numbers.filter(num => num.trim() !== '')
+          })
         });
       }
       await fetchWorkers();
@@ -64,7 +70,7 @@ const WorkerModal = ({ onClose }) => {
   const handleEdit = (worker) => {
     setFormData({
       name: worker.name,
-      phone_number: worker.phone_number
+      phone_numbers: worker.phone_numbers || [worker.phone_number]
     });
     setIsEditing(true);
     setShowForm(true);
@@ -72,8 +78,32 @@ const WorkerModal = ({ onClose }) => {
 
   const handleBackToList = () => {
     setShowForm(false);
-    setFormData({ name: '', phone_number: '' });
+    setFormData({ name: '', phone_numbers: [''] });
     setIsEditing(false);
+  };
+
+  const addPhoneNumber = () => {
+    setFormData({
+      ...formData,
+      phone_numbers: [...formData.phone_numbers, '']
+    });
+  };
+
+  const removePhoneNumber = (index) => {
+    const newPhoneNumbers = formData.phone_numbers.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      phone_numbers: newPhoneNumbers
+    });
+  };
+
+  const updatePhoneNumber = (index, value) => {
+    const newPhoneNumbers = [...formData.phone_numbers];
+    newPhoneNumbers[index] = value;
+    setFormData({
+      ...formData,
+      phone_numbers: newPhoneNumbers
+    });
   };
 
   return (
@@ -81,29 +111,35 @@ const WorkerModal = ({ onClose }) => {
       <div className="modal-dialog modal-dialog-centered">
         <div className="modal-content">
           <div className="modal-header">
-            <div className="d-flex align-items-center">
-              {showForm && (
-                <button 
-                  className="btn btn-link text-decoration-none me-2"
-                  onClick={handleBackToList}
-                >
-                  <ArrowLeft size={20} />
-                </button>
+            <div className="d-flex flex-column w-100">
+              <div className="d-flex align-items-center justify-content-between">
+                <div className="d-flex align-items-center">
+                  {showForm && (
+                    <button 
+                      className="btn btn-link text-decoration-none me-2"
+                      onClick={handleBackToList}
+                    >
+                      <ArrowLeft size={20} />
+                    </button>
+                  )}
+                  <h5 className="modal-title mb-0">
+                    {showForm ? (isEditing ? 'Edit Worker' : 'Create Worker') : 'Workers'}
+                  </h5>
+                </div>
+                <button type="button" className="btn-close" onClick={onClose}></button>
+              </div>
+              {!showForm && (
+                <div className="mt-4">
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => setShowForm(true)}
+                  >
+                    <Plus size={20} className="me-1" />
+                    Create
+                  </button>
+                </div>
               )}
-              <h5 className="modal-title mb-0">
-                {showForm ? (isEditing ? 'Edit Worker' : 'Create Worker') : 'Workers'}
-              </h5>
             </div>
-            {!showForm && (
-              <button 
-                className="btn btn-primary me-2"
-                onClick={() => setShowForm(true)}
-              >
-                <Plus size={20} className="me-1" />
-                Create
-              </button>
-            )}
-            <button type="button" className="btn-close" onClick={onClose}></button>
           </div>
           <div className="modal-body">
             {showForm ? (
@@ -119,15 +155,36 @@ const WorkerModal = ({ onClose }) => {
                   />
                 </div>
                 <div className="mb-3">
-                  <label className="form-label">Phone Number</label>
-                  <input
-                    type="tel"
-                    className="form-control"
-                    value={formData.phone_number}
-                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                    required
-                    disabled={isEditing}
-                  />
+                  <label className="form-label">Phone Numbers</label>
+                  {formData.phone_numbers.map((phoneNumber, index) => (
+                    <div key={index} className="input-group mb-2">
+                      <input
+                        type="tel"
+                        className="form-control"
+                        value={phoneNumber}
+                        onChange={(e) => updatePhoneNumber(index, e.target.value)}
+                        required={index === 0}
+                        disabled={isEditing && index === 0}
+                      />
+                      {index > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn-outline-danger"
+                          onClick={() => removePhoneNumber(index)}
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary mt-2"
+                    onClick={addPhoneNumber}
+                  >
+                    <Plus size={16} className="me-1" />
+                    Add Phone Number
+                  </button>
                 </div>
                 <div className="d-flex justify-content-end gap-2">
                   <button type="button" className="btn btn-secondary" onClick={handleBackToList}>
@@ -149,10 +206,15 @@ const WorkerModal = ({ onClose }) => {
                 ) : (
                   workers.map((worker) => (
                     <div 
-                      key={worker.phone_number} 
+                      key={worker.phone_numbers?.[0] || worker.phone_number} 
                       className="list-group-item d-flex justify-content-between align-items-center"
                     >
-                      <span>{worker.name}</span>
+                      <div>
+                        <div>{worker.name}</div>
+                        <small className="text-muted">
+                          {worker.phone_numbers?.join(', ') || worker.phone_number}
+                        </small>
+                      </div>
                       <div className="btn-group">
                         <button
                           className="btn btn-sm btn-outline-primary"
@@ -162,7 +224,7 @@ const WorkerModal = ({ onClose }) => {
                         </button>
                         <button
                           className="btn btn-sm btn-outline-danger"
-                          onClick={() => handleDelete(worker.phone_number)}
+                          onClick={() => handleDelete(worker.phone_numbers?.[0] || worker.phone_number)}
                         >
                           <Trash2 size={16} />
                         </button>

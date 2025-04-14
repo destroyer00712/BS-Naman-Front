@@ -266,7 +266,10 @@ const OrderDetails = ({ order, onClose }) => {
     }}>
       <div className="modal-content bg-white rounded-3 shadow" style={{ width: '90%', maxWidth: '500px' }}>
         <div className="modal-header border-bottom p-3 d-flex justify-content-between align-items-center">
-          <h5 className="mb-0">Order Details</h5>
+          <div>
+            <h5 className="mb-0">Order Details</h5>
+            <small className="text-muted">Order ID: {order.order_id}</small>
+          </div>
           <button className="btn btn-light rounded-circle" onClick={onClose}>
             <X size={20} />
           </button>
@@ -275,7 +278,6 @@ const OrderDetails = ({ order, onClose }) => {
         <div className="modal-body p-4">
           <div className="mb-4">
             <h6 className="text-muted mb-2">Order Information</h6>
-            <p className="mb-1"><strong>Order ID:</strong> {order.order_id}</p>
             <p className="mb-1"><strong>Created:</strong> {new Date(order.created_at).toLocaleString()}</p>
             <p className="mb-1"><strong>Updated:</strong> {new Date(order.updated_at).toLocaleString()}</p>
           </div>
