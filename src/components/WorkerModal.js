@@ -6,7 +6,10 @@ const WorkerModal = ({ onClose }) => {
   const [workers, setWorkers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', phone_numbers: [''] });
+  const [formData, setFormData] = useState({ 
+    name: '', 
+    phone_numbers: [{ number: '', is_primary: true }] 
+  });
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
@@ -16,7 +19,7 @@ const WorkerModal = ({ onClose }) => {
   const fetchWorkers = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKERS}`);
+      const response = await fetch(`${config.API_ROOT}/api/workers`);
       const data = await response.json();
       setWorkers(data.workers);
     } catch (error) {
@@ -25,52 +28,80 @@ const WorkerModal = ({ onClose }) => {
     setIsLoading(false);
   };
 
+  const getWorkerByPrimaryPhone = async (phoneNumber) => {
+    try {
+      const response = await fetch(`${config.API_ROOT}/api/workers/${phoneNumber}`);
+      if (!response.ok) {
+        throw new Error('Worker not found');
+      }
+      const data = await response.json();
+      return data.worker;
+    } catch (error) {
+      console.error('Error fetching worker by phone:', error);
+      return null;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const workerData = {
+        name: formData.name,
+        phone_numbers: formData.phone_numbers
+      };
+
       if (isEditing) {
-        await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKER_DETAILS(formData.phone_numbers[0])}`, {
+        const response = await fetch(`${config.API_ROOT}/api/workers/${formData.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            name: formData.name,
-            phone_numbers: formData.phone_numbers.filter(num => num.trim() !== '')
-          })
+          body: JSON.stringify(workerData)
         });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to update worker');
+        }
       } else {
-        await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKERS}`, {
+        const response = await fetch(`${config.API_ROOT}/api/workers`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: formData.name,
-            phone_numbers: formData.phone_numbers.filter(num => num.trim() !== '')
-          })
+          body: JSON.stringify(workerData)
         });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to create worker');
+        }
       }
       await fetchWorkers();
       handleBackToList();
     } catch (error) {
       console.error('Error saving worker:', error);
+      // You might want to show an error message to the user here
     }
   };
 
-  const handleDelete = async (phoneNumber) => {
+  const handleDelete = async (workerId) => {
     if (window.confirm('Are you sure you want to delete this worker?')) {
       try {
-        await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKER_DETAILS(phoneNumber)}`, {
+        const response = await fetch(`${config.API_ROOT}/api/workers/${workerId}`, {
           method: 'DELETE'
         });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to delete worker');
+        }
         await fetchWorkers();
       } catch (error) {
         console.error('Error deleting worker:', error);
+        // You might want to show an error message to the user here
       }
     }
   };
 
   const handleEdit = (worker) => {
     setFormData({
+      id: worker.id,
       name: worker.name,
-      phone_numbers: worker.phone_numbers || [worker.phone_number]
+      phone_numbers: worker.phone_numbers
     });
     setIsEditing(true);
     setShowForm(true);
@@ -78,19 +109,23 @@ const WorkerModal = ({ onClose }) => {
 
   const handleBackToList = () => {
     setShowForm(false);
-    setFormData({ name: '', phone_numbers: [''] });
+    setFormData({ name: '', phone_numbers: [{ number: '', is_primary: true }] });
     setIsEditing(false);
   };
 
   const addPhoneNumber = () => {
     setFormData({
       ...formData,
-      phone_numbers: [...formData.phone_numbers, '']
+      phone_numbers: [...formData.phone_numbers, { number: '', is_primary: false }]
     });
   };
 
   const removePhoneNumber = (index) => {
     const newPhoneNumbers = formData.phone_numbers.filter((_, i) => i !== index);
+    // If we're removing the primary number, make the first remaining number primary
+    if (formData.phone_numbers[index].is_primary && newPhoneNumbers.length > 0) {
+      newPhoneNumbers[0].is_primary = true;
+    }
     setFormData({
       ...formData,
       phone_numbers: newPhoneNumbers
@@ -99,7 +134,18 @@ const WorkerModal = ({ onClose }) => {
 
   const updatePhoneNumber = (index, value) => {
     const newPhoneNumbers = [...formData.phone_numbers];
-    newPhoneNumbers[index] = value;
+    newPhoneNumbers[index].number = value;
+    setFormData({
+      ...formData,
+      phone_numbers: newPhoneNumbers
+    });
+  };
+
+  const setPrimaryNumber = (index) => {
+    const newPhoneNumbers = formData.phone_numbers.map((phone, i) => ({
+      ...phone,
+      is_primary: i === index
+    }));
     setFormData({
       ...formData,
       phone_numbers: newPhoneNumbers
@@ -156,17 +202,27 @@ const WorkerModal = ({ onClose }) => {
                 </div>
                 <div className="mb-3">
                   <label className="form-label">Phone Numbers</label>
-                  {formData.phone_numbers.map((phoneNumber, index) => (
+                  {formData.phone_numbers.map((phone, index) => (
                     <div key={index} className="input-group mb-2">
                       <input
                         type="tel"
                         className="form-control"
-                        value={phoneNumber}
+                        value={phone.number}
                         onChange={(e) => updatePhoneNumber(index, e.target.value)}
                         required={index === 0}
                         disabled={isEditing && index === 0}
                       />
-                      {index > 0 && (
+                      <div className="input-group-text">
+                        <input
+                          type="radio"
+                          name="primaryPhone"
+                          checked={phone.is_primary}
+                          onChange={() => setPrimaryNumber(index)}
+                          className="form-check-input mt-0"
+                        />
+                        <small className="ms-1">Primary</small>
+                      </div>
+                      {formData.phone_numbers.length > 1 && (
                         <button
                           type="button"
                           className="btn btn-outline-danger"
@@ -206,13 +262,15 @@ const WorkerModal = ({ onClose }) => {
                 ) : (
                   workers.map((worker) => (
                     <div 
-                      key={worker.phone_numbers?.[0] || worker.phone_number} 
+                      key={worker.id} 
                       className="list-group-item d-flex justify-content-between align-items-center"
                     >
                       <div>
                         <div>{worker.name}</div>
                         <small className="text-muted">
-                          {worker.phone_numbers?.join(', ') || worker.phone_number}
+                          {worker.phone_numbers.map(phone => 
+                            `${phone.number}${phone.is_primary ? ' (Primary)' : ''}`
+                          ).join(', ')}
                         </small>
                       </div>
                       <div className="btn-group">
@@ -224,7 +282,7 @@ const WorkerModal = ({ onClose }) => {
                         </button>
                         <button
                           className="btn btn-sm btn-outline-danger"
-                          onClick={() => handleDelete(worker.phone_numbers?.[0] || worker.phone_number)}
+                          onClick={() => handleDelete(worker.id)}
                         >
                           <Trash2 size={16} />
                         </button>

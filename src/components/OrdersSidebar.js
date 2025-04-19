@@ -144,7 +144,31 @@ const OrdersSidebar = ({ onOrderSelect }) => {
       clearInterval(intervalId); // Clear the interval when the component unmounts
     };
   }, []);
-
+  const getWorkerPhoneNumbersByName = async (name) => {
+    try {
+      const response = await fetch(`${config.API_ROOT}/api/workers`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch workers');
+      }
+      const data = await response.json();
+      
+      // Filter workers by name
+      const matchedWorkers = data.workers.filter(worker => worker.name.toLowerCase() === name.toLowerCase());
+      
+      // Extract phone numbers from matched workers
+      const phoneNumbers = matchedWorkers.flatMap(worker => 
+        worker.phone_numbers.map(phone => phone.number)
+      );
+  
+      return phoneNumbers;
+    } catch (error) {
+      console.error('Error fetching worker phone numbers:', error);
+      return [];
+    }
+  };
+  
+  
+  
   useEffect(() => {
     const fetchWorkers = async () => {
       try {
@@ -175,7 +199,7 @@ const OrdersSidebar = ({ onOrderSelect }) => {
     setClientNames(names);
   };
 
-  const updateOrderStatus = async (orderId, status, workerPhone = null) => {
+  const updateOrderStatus = async (orderId, status, workerId = null) => {
     const order = orders.find(o => o.order_id === orderId);
     if (!order) return;
 
@@ -184,12 +208,12 @@ const OrdersSidebar = ({ onOrderSelect }) => {
       status: status
     };
 
-    if (workerPhone) {
-      updatedJewelleryDetails['worker-phone'] = workerPhone;
+    if (workerId) {
+      updatedJewelleryDetails['worker-id'] = workerId;
     }
 
     try {
-      const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.ORDERS}/${orderId}`, {
+      const response = await fetch(`${config.API_ROOT}/api/orders/${orderId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -264,75 +288,81 @@ const OrdersSidebar = ({ onOrderSelect }) => {
   };
 
 
-  const sendWorkerNotification = async (workerPhone, order) => {
+  const sendWorkerNotification = async (workerName, order) => {
     try {
-      const response = await fetch(`${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}/messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: workerPhone,
-          type: "template",
-          template: {
-            name: "worker_assignment",
-            language: {
-              code: "en"
-            },
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  {
-                    type: "text",
-                    text: order.order_id
-                  },
-                  {
-                    type: "text",
-                    text: order.jewellery_details.name || "Not specified"
-                  },
-                  {
-                    type: "text",
-                    text: order.jewellery_details.weight || "Not specified"
-                  },
-                  {
-                    type: "text",
-                    text: order.jewellery_details.melting || "Not specified"
-                  },
-                  {
-                    type: "text",
-                    text: order.jewellery_details.special || "No special instructions"
-                  }
-                ]
-              }
-            ]
-          }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send WhatsApp notification');
+      // Get the worker's phone numbers using the worker's name
+      const phoneNumbers = await getWorkerPhoneNumbersByName(workerName);
+      
+      if (phoneNumbers.length === 0) {
+        throw new Error('No phone numbers found for the worker');
       }
 
-      console.log('Worker notification sent successfully');
+      // Send notification to all phone numbers
+      const notificationPromises = phoneNumbers.map(phoneNumber => 
+        fetch(`${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: phoneNumber,
+            type: "template",
+            template: {
+              name: "worker_assignment",
+              language: {
+                code: "en"
+              },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    {
+                      type: "text",
+                      text: order.order_id
+                    },
+                    {
+                      type: "text",
+                      text: order.jewellery_details.name || "Not specified"
+                    },
+                    {
+                      type: "text",
+                      text: order.jewellery_details.weight || "Not specified"
+                    },
+                    {
+                      type: "text",
+                      text: order.jewellery_details.melting || "Not specified"
+                    },
+                    {
+                      type: "text",
+                      text: order.jewellery_details.special || "No special instructions"
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        })
+      );
+
+      await Promise.all(notificationPromises);
+      console.log('Worker notifications sent successfully to all numbers');
     } catch (error) {
-      console.error('Error sending worker notification:', error);
-      // You might want to show an error message to the user here
+      console.error('Error sending worker notifications:', error);
     }
   };
 
-  const handleWorkerSelect = async (workerPhone) => {
+  const handleWorkerSelect = async (workerId) => {
     setShowWorkerModal(false);
     
     try {
       // First update the order status
-      await updateOrderStatus(currentOrder.order_id, 'accepted', workerPhone);
+      await updateOrderStatus(currentOrder.order_id, 'accepted', getWorkerPrimaryPhoneNumberByName(workerId) );
       
       // Then send the WhatsApp notification
-      await sendWorkerNotification(workerPhone, currentOrder);
+      await sendWorkerNotification(workerId, currentOrder);
       
       // Finally update the UI
       onOrderSelect({ 
@@ -340,12 +370,34 @@ const OrdersSidebar = ({ onOrderSelect }) => {
         jewellery_details: { 
           ...currentOrder.jewellery_details, 
           status: 'accepted',
-          'worker-phone': workerPhone 
+          'worker-id': workerId 
         }
       });
     } catch (error) {
       console.error('Error in worker assignment process:', error);
-      // You might want to show an error message to the user here
+    }
+  };
+
+  const getWorkerPrimaryPhoneNumberByName = async (name) => {
+    try {
+      const response = await fetch(`${config.API_ROOT}/api/workers`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch workers');
+      }
+      const data = await response.json();
+      
+      // Filter workers by name
+      const matchedWorkers = data.workers.filter(worker => worker.name.toLowerCase() === name.toLowerCase());
+      
+      // Extract primary phone number from matched workers
+      const primaryNumbers = matchedWorkers.map(worker => 
+        worker.phone_numbers.find(phone => phone.is_primary)?.number
+      ).filter(number => number !== undefined);
+  
+      return primaryNumbers[0] || null; // Return first primary number or null if none found
+    } catch (error) {
+      console.error('Error fetching worker primary phone number:', error);
+      return null;
     }
   };
 

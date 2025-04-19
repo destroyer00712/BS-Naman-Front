@@ -4,17 +4,21 @@ import config from '../modules/config';
 
 const OrderDetails = ({ order, onClose }) => {
   const [workers, setWorkers] = useState([]);
-  const [selectedWorker, setSelectedWorker] = useState(order?.jewellery_details?.['worker-phone'] || '');
+  const [selectedWorker, setSelectedWorker] = useState(order?.jewellery_details?.['worker-id'] || '');
   const [isCompleted, setIsCompleted] = useState(order?.jewellery_details?.status === 'completed');
   const [isLoading, setIsLoading] = useState(false);
+  const [workerName, setWorkerName] = useState('');
 
   useEffect(() => {
     fetchWorkers();
-  }, []);
+    if (selectedWorker) {
+      fetchWorkerName(selectedWorker);
+    }
+  }, [selectedWorker]);
 
   const fetchWorkers = async () => {
     try {
-      const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKERS}`);
+      const response = await fetch(`${config.API_ROOT}/api/workers`);
       const data = await response.json();
       setWorkers(data.workers);
     } catch (error) {
@@ -22,171 +26,166 @@ const OrderDetails = ({ order, onClose }) => {
     }
   };
 
-  const sendWorkerNotification = async (workerPhone, order) => {
+  const fetchWorkerName = async (workerId) => {
     try {
-      const response = await fetch(`${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}/messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: workerPhone,
-          type: "template",
-          template: {
-            name: "worker_assignment",
-            language: {
-              code: "en"
-            },
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  {
-                    type: "text",
-                    text: order.order_id
-                  },
-                  {
-                    type: "text",
-                    text: order.jewellery_details.name || "Not specified"
-                  },
-                  {
-                    type: "text",
-                    text: order.jewellery_details.weight || "Not specified"
-                  },
-                  {
-                    type: "text",
-                    text: order.jewellery_details.melting || "Not specified"
-                  },
-                  {
-                    type: "text",
-                    text: order.jewellery_details.special || "No special instructions"
-                  }
-                ]
-              }
-            ]
-          }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send WhatsApp notification');
+      const response = await fetch(`${config.API_ROOT}/api/workers/${workerId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setWorkerName(data.worker.name);
       }
-
-      console.log('Worker notification sent successfully');
     } catch (error) {
-      console.error('Error sending worker notification:', error);
+      console.error('Error fetching worker name:', error);
     }
   };
 
-  const sendWorkerRemovedNotification = async (workerPhone, order) => {
+  const getWorkerPhoneNumbersByName = async (name) => {
     try {
-      const response = await fetch(`${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}/messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: workerPhone,
-          type: "template",
-          template: {
-            name: "worker_changed",
-            language: {
-              code: "en"
-            },
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  {
-                    type: "text",
-                    text: order.order_id
-                  }
-                ]
-              }
-            ]
-          }
-        })
-      });
-
+      const response = await fetch(`${config.API_ROOT}/api/workers`);
       if (!response.ok) {
-        throw new Error('Failed to send WhatsApp notification');
+        throw new Error('Failed to fetch workers');
       }
+      const data = await response.json();
+      
+      const matchedWorkers = data.workers.filter(worker => worker.name.toLowerCase() === name.toLowerCase());
+      const phoneNumbers = matchedWorkers.flatMap(worker => 
+        worker.phone_numbers.map(phone => phone.number)
+      );
 
-      console.log('Worker notification sent successfully');
+      return phoneNumbers;
     } catch (error) {
-      console.error('Error sending worker notification:', error);
+      console.error('Error fetching worker phone numbers:', error);
+      return [];
     }
   };
 
-  const sendCompletionNotification = async (phone, order) => {
+  const sendWorkerNotification = async (workerName, order, isTermination = false) => {
     try {
-      const response = await fetch(`${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}/messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: phone,
-          type: "template",
-          template: {
-            name: "order_completed",
-            language: {
-              code: "en"
-            },
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  {
-                    type: "text",
-                    text: order.order_id
-                  },
-                  {
-                    type: "text",
-                    text: order.jewellery_details.name || "Not specified"
-                  }
-                ]
-              }
-            ]
-          }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send WhatsApp notification');
+      const phoneNumbers = await getWorkerPhoneNumbersByName(workerName);
+      
+      if (phoneNumbers.length === 0) {
+        throw new Error('No phone numbers found for the worker');
       }
 
-      console.log('Completion notification sent successfully');
+      const templateName = isTermination ? 'worker_termination' : 'worker_assignment';
+      const notificationPromises = phoneNumbers.map(phoneNumber => 
+        fetch(`${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: phoneNumber,
+            type: "template",
+            template: {
+              name: templateName,
+              language: {
+                code: "en"
+              },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    {
+                      type: "text",
+                      text: order.order_id
+                    },
+                    {
+                      type: "text",
+                      text: order.jewellery_details.name || "Not specified"
+                    },
+                    {
+                      type: "text",
+                      text: order.jewellery_details.weight || "Not specified"
+                    },
+                    {
+                      type: "text",
+                      text: order.jewellery_details.melting || "Not specified"
+                    },
+                    {
+                      type: "text",
+                      text: order.jewellery_details.special || "No special instructions"
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        })
+      );
+
+      await Promise.all(notificationPromises);
+      console.log(`Worker ${isTermination ? 'termination' : 'assignment'} notifications sent successfully to all numbers`);
     } catch (error) {
-      console.error('Error sending completion notification:', error);
+      console.error(`Error sending worker ${isTermination ? 'termination' : 'assignment'} notifications:`, error);
     }
   };
 
-  const updateOrder = async (workerPhone, status) => {
+  const getWorkerPrimaryPhoneNumber = async (workerId) => {
+    try {
+      const response = await fetch(`${config.API_ROOT}/api/workers`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch workers');
+      }
+      const data = await response.json();
+      
+      // Find worker by ID
+      const worker = data.workers.find(w => w.id === workerId);
+      if (!worker) {
+        return null;
+      }
+      
+      // Get primary phone number
+      const primaryPhone = worker.phone_numbers.find(phone => phone.is_primary);
+      return primaryPhone ? primaryPhone.number : null;
+    } catch (error) {
+      console.error('Error fetching worker primary phone number:', error);
+      return null;
+    }
+  };
+
+  const updateOrder = async (workerId, status) => {
     setIsLoading(true);
     try {
-      console.log('Updating order with worker:', workerPhone);
-      console.log('Current worker:', order.jewellery_details['worker-phone']);
-      
       const updatedOrder = {
         client_details: {
           phone: order.client_details.phone
         },
         jewellery_details: {
           ...order.jewellery_details,
-          'worker-phone': workerPhone,
+          'worker-id': workerId,
           status: status
         }
       };
+
+      // If there was a previous worker and we're changing workers, send termination notification
+      if (order.jewellery_details['worker-id'] && order.jewellery_details['worker-id'] !== workerId) {
+        try {
+          // First try to get the worker from the local workers list
+          const previousWorker = workers.find(w => w.id === order.jewellery_details['worker-id']);
+          if (previousWorker) {
+            const primaryPhone = previousWorker.phone_numbers.find(phone => phone.is_primary);
+            if (primaryPhone) {
+              await sendWorkerNotification(previousWorker.name, order, true);
+            }
+          } else {
+            // Fallback to API if not found locally
+            const primaryPhone = await getWorkerPrimaryPhoneNumber(order.jewellery_details['worker-id']);
+            if (primaryPhone) {
+              const previousWorkerResponse = await fetch(`${config.API_ROOT}/api/workers/${primaryPhone}`);
+              if (previousWorkerResponse.ok) {
+                const previousWorkerData = await previousWorkerResponse.json();
+                await sendWorkerNotification(previousWorkerData.worker.name, order, true);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error sending termination notification:', error);
+          // Continue with the order update even if notification fails
+        }
+      }
 
       await fetch(`${config.API_ROOT}/api/orders/${order.order_id}`, {
         method: 'PUT',
@@ -196,20 +195,31 @@ const OrderDetails = ({ order, onClose }) => {
         body: JSON.stringify(updatedOrder)
       });
 
-      // Only send worker notifications if the worker is actually changing
-      const isWorkerChange = workerPhone !== order.jewellery_details['worker-phone'];
-      if (isWorkerChange) {
-        console.log('Worker changed, sending notifications');
-        if (order.jewellery_details['worker-phone']) {
-          console.log('Sending removal notification to:', order.jewellery_details['worker-phone']);
-          await sendWorkerRemovedNotification(order.jewellery_details['worker-phone'], order);
+      // If a new worker is assigned, send assignment notification
+      if (workerId) {
+        try {
+          // First try to get the worker from the local workers list
+          const newWorker = workers.find(w => w.id === workerId);
+          if (newWorker) {
+            const primaryPhone = newWorker.phone_numbers.find(phone => phone.is_primary);
+            if (primaryPhone) {
+              await sendWorkerNotification(newWorker.name, order);
+            }
+          } else {
+            // Fallback to API if not found locally
+            const primaryPhone = await getWorkerPrimaryPhoneNumber(workerId);
+            if (primaryPhone) {
+              const workerResponse = await fetch(`${config.API_ROOT}/api/workers/${primaryPhone}`);
+              if (workerResponse.ok) {
+                const workerData = await workerResponse.json();
+                await sendWorkerNotification(workerData.worker.name, order);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error sending assignment notification:', error);
+          // Continue with the order update even if notification fails
         }
-        if (workerPhone) {
-          console.log('Sending assignment notification to:', workerPhone);
-          await sendWorkerNotification(workerPhone, order);
-        }
-      } else {
-        console.log('No worker change detected, skipping notifications');
       }
     } catch (error) {
       console.error('Error updating order:', error);
@@ -218,10 +228,10 @@ const OrderDetails = ({ order, onClose }) => {
     }
   };
 
-  const handleWorkerChange = (e) => {
+  const handleWorkerChange = async (e) => {
     const value = e.target.value;
     setSelectedWorker(value);
-    updateOrder(value, isCompleted ? 'completed' : 'accepted');
+    await updateOrder(value, isCompleted ? 'completed' : 'accepted');
   };
 
   const handleStatusToggle = async (e) => {
@@ -229,22 +239,9 @@ const OrderDetails = ({ order, onClose }) => {
     setIsCompleted(checked);
     
     try {
-      // Update the order status
-      await updateOrder(order.jewellery_details['worker-phone'], checked ? 'completed' : 'accepted');
-      
-      // If order is being marked as completed, send notifications
-      if (checked) {
-        // Send notification to customer
-        await sendCompletionNotification(order.client_details.phone, order);
-        
-        // Send notification to worker if there is one assigned
-        if (order.jewellery_details['worker-phone']) {
-          await sendCompletionNotification(order.jewellery_details['worker-phone'], order);
-        }
-      }
+      await updateOrder(order.jewellery_details['worker-id'], checked ? 'completed' : 'accepted');
     } catch (error) {
       console.error('Error in status update process:', error);
-      // Revert the checkbox state if there was an error
       setIsCompleted(!checked);
     }
   };
@@ -284,19 +281,26 @@ const OrderDetails = ({ order, onClose }) => {
 
           <div className="mb-4">
             <h6 className="text-muted mb-2">Worker Assignment</h6>
-            <select 
-              className="form-select"
-              value={selectedWorker}
-              onChange={handleWorkerChange}
-              disabled={isLoading}
-            >
-              <option value="">Select a worker</option>
-              {workers.map((worker) => (
-                <option key={worker.phone_number} value={worker.phone_number}>
-                  {worker.name} ({worker.phone_number})
-                </option>
-              ))}
-            </select>
+            <div className="d-flex align-items-center gap-2">
+              <select 
+                className="form-select"
+                value={selectedWorker}
+                onChange={handleWorkerChange}
+                disabled={isLoading}
+              >
+                <option value="">Select a worker</option>
+                {workers.map((worker) => (
+                  <option key={worker.id} value={worker.id}>
+                    {worker.name}
+                  </option>
+                ))}
+              </select>
+              {workerName && (
+                <span className="badge bg-primary">
+                  {workerName}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="mb-4">
