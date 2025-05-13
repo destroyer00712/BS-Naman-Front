@@ -108,8 +108,25 @@ const SendMessageModal = ({
       }
 
       if (recipientType === 'worker' || recipientType === 'both') {
-        const workerSuccess = await sendWhatsAppMessage(selectedOrder.jewellery_details['worker-phone'], selectedOrder.order_id, message);
-        success = success && workerSuccess;
+        try {
+          // Fetch all worker phone numbers
+          const workerResponse = await fetch(`${config.API_ROOT}/api/workers/${selectedOrder.worker_phone}`);
+          const workerData = await workerResponse.json();
+          const workerPhones = workerData.worker.phones.map(phone => phone.phone_number);
+
+          // Send message to all worker phones
+          const workerSendPromises = workerPhones.map(async (phoneNumber) => {
+            const workerSuccess = await sendWhatsAppMessage(phoneNumber, selectedOrder.order_id, message);
+            return workerSuccess;
+          });
+
+          const workerResults = await Promise.all(workerSendPromises);
+          const workerSuccess = workerResults.every(result => result === true);
+          success = success && workerSuccess;
+        } catch (error) {
+          console.error('Error sending to worker phones:', error);
+          success = false;
+        }
       }
 
       if (success) {

@@ -324,24 +324,62 @@ const OrdersSidebar = ({ onOrderSelect }) => {
     }
   };
 
+  const fetchWorkerDetails = async (phoneNumber) => {
+    try {
+      const response = await fetch(`${config.API_ROOT}/api/workers/${phoneNumber}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch worker details');
+      }
+      const data = await response.json();
+      return data.worker;
+    } catch (error) {
+      console.error('Error fetching worker details:', error);
+      throw error;
+    }
+  };
+
   const handleWorkerSelect = async (workerPhone) => {
     setShowWorkerModal(false);
     
     try {
-      // First update the order status
-      await updateOrderStatus(currentOrder.order_id, 'accepted', workerPhone);
+      // Fetch worker details to get all associated phone numbers
+      const workerDetails = await fetchWorkerDetails(workerPhone);
       
-      // Then send the WhatsApp notification
-      await sendWorkerNotification(workerPhone, currentOrder);
+      // Update the order using the reassignment API
+      const response = await fetch(`${config.API_ROOT}/api/orders/${currentOrder.order_id}/reassign`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_details: currentOrder.client_details,
+          jewellery_details: {
+            ...currentOrder.jewellery_details,
+            status: 'accepted'
+          },
+          'worker-phone': workerPhone
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update order');
+      }
+
+      // Send notifications to all worker phones
+      console.log('Sending assignment notifications to all worker phones');
+      for (const phone of workerDetails.phones) {
+        console.log('Sending assignment notification to:', phone.phone_number);
+        await sendWorkerNotification(phone.phone_number, currentOrder);
+      }
       
-      // Finally update the UI
+      // Update the UI
       onOrderSelect({ 
         ...currentOrder, 
         jewellery_details: { 
           ...currentOrder.jewellery_details, 
-          status: 'accepted',
-          'worker-phone': workerPhone 
-        }
+          status: 'accepted'
+        },
+        'worker-phone': workerPhone
       });
     } catch (error) {
       console.error('Error in worker assignment process:', error);

@@ -90,7 +90,7 @@ const SendMessageModal = ({
         success = success && clientSuccess;
       }
 
-      if (recipientType === 'worker' || recipientType === 'both') {
+      if (recipientType === 'worker' || recipientType === 'both') { 
         const workerSuccess = await sendWhatsAppMessage(selectedOrder.jewellery_details['worker-phone'], message);
         success = success && workerSuccess;
       }
@@ -595,9 +595,22 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     setIsForwarding(true);
     try {
       const url = `${config.WHATSAPP_API_ROOT}${config.WHATSAPP_PHONE_ID}${config.WHATSAPP_ENDPOINTS.MESSAGES}`;
-      const phoneNumber = targetType === 'client' 
-        ? selectedOrder.client_details.phone 
-        : selectedOrder.jewellery_details['worker-phone'];
+      
+      // Get the target phone number(s)
+      let targetPhones = [];
+      if (targetType === 'client') {
+        targetPhones = [selectedOrder.client_details.phone];
+      } else {
+        // For worker, fetch all phone numbers
+        try {
+          const workerResponse = await fetch(`${config.API_ROOT}/api/workers/${selectedOrder.worker_phone}`);
+          const workerData = await workerResponse.json();
+          targetPhones = workerData.worker.phones.map(phone => phone.phone_number);
+        } catch (error) {
+          console.error('Error fetching worker phones:', error);
+          throw new Error('Failed to fetch worker phone numbers');
+        }
+      }
 
       let templateName = 'update_sending';
       let templateComponents = [{
@@ -695,26 +708,35 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         }
       }
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: phoneNumber.replace(/\D/g, ''),
-          type: "template",
-          template: {
-            name: templateName,
-            language: { code: "en" },
-            components: templateComponents
-          }
-        })
+      // Send message to all target phones
+      const sendPromises = targetPhones.map(async (phoneNumber) => {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: phoneNumber.replace(/\D/g, ''),
+            type: "template",
+            template: {
+              name: templateName,
+              language: { code: "en" },
+              components: templateComponents
+            }
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to forward message to ${phoneNumber}`);
+        }
+        return response;
       });
 
-      if (!response.ok) throw new Error('Failed to forward message');
+      // Wait for all messages to be sent
+      await Promise.all(sendPromises);
       
       // Save the forwarded message with more context
       const senderType = message.sender_type === 'client' ? 'Client' : 'Worker';
@@ -762,7 +784,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     <>
       <div className="d-flex flex-column vh-100 bg-white rounded-3 shadow-sm">
         {/* Chat Header */}
-        <div className="p-2 p-md-3 border-bottom d-flex justify-content-between align-items-center" style={{ marginTop: '60px', backgroundColor: '#f8f9fa' }}>
+        <div className="p-2 p-md-3 border-bottom d-flex justify-content-between align-items-center" style={{ marginTop: '60px' }}>
           <div className="d-flex align-items-center gap-2">
             <button 
               className="btn btn-light rounded-circle btn-sm"
@@ -770,16 +792,11 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
             >
               <Plus size={18} />
             </button>
-            <div className="d-flex flex-column">
-              <h6 className="mb-0 fw-bold text-primary">
-                {isLoadingClient ? (
-                  <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                ) : clientName || 'Unknown Client'}
-              </h6>
-              <small className="text-muted">
-                Order ID: {selectedOrder?.order_id || 'No Order ID'}
-              </small>
-            </div>
+            <h6 className="mb-0 fw-bold text-truncate" style={{ maxWidth: '200px' }}>
+              {isLoadingClient ? (
+                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+              ) : clientName || 'Unknown Client'} - {selectedOrder?.order_id || 'No Order ID'}
+            </h6>
           </div>
           <button className="btn btn-light rounded-circle btn-sm" onClick={onInfoClick}>
             <Info size={18} />

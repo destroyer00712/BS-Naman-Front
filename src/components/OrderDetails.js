@@ -171,11 +171,28 @@ const OrderDetails = ({ order, onClose }) => {
     }
   };
 
+  const fetchWorkerDetails = async (phoneNumber) => {
+    try {
+      const response = await fetch(`${config.API_ROOT}/api/workers/${phoneNumber}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch worker details');
+      }
+      const data = await response.json();
+      return data.worker;
+    } catch (error) {
+      console.error('Error fetching worker details:', error);
+      throw error;
+    }
+  };
+
   const updateOrder = async (workerPhone, status) => {
     setIsLoading(true);
     try {
       console.log('Updating order with worker:', workerPhone);
       console.log('Current worker:', order.jewellery_details['worker-phone']);
+      
+      // Fetch worker details to get all associated phone numbers
+      const workerDetails = await fetchWorkerDetails(workerPhone);
       
       const updatedOrder = {
         client_details: {
@@ -188,7 +205,8 @@ const OrderDetails = ({ order, onClose }) => {
         }
       };
 
-      await fetch(`${config.API_ROOT}/api/orders/${order.order_id}`, {
+      // Use the reassignment API
+      await fetch(`${config.API_ROOT}/api/orders/${order.order_id}/reassign`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -201,12 +219,22 @@ const OrderDetails = ({ order, onClose }) => {
       if (isWorkerChange) {
         console.log('Worker changed, sending notifications');
         if (order.jewellery_details['worker-phone']) {
-          console.log('Sending removal notification to:', order.jewellery_details['worker-phone']);
-          await sendWorkerRemovedNotification(order.jewellery_details['worker-phone'], order);
+          // Fetch previous worker's details to get all their phone numbers
+          const previousWorkerDetails = await fetchWorkerDetails(order.jewellery_details['worker-phone']);
+          console.log('Sending removal notifications to all previous worker phones');
+          // Send removal notifications to all previous worker's phones
+          for (const phone of previousWorkerDetails.phones) {
+            console.log('Sending removal notification to:', phone.phone_number);
+            await sendWorkerRemovedNotification(phone.phone_number, order);
+          }
         }
         if (workerPhone) {
-          console.log('Sending assignment notification to:', workerPhone);
-          await sendWorkerNotification(workerPhone, order);
+          console.log('Sending assignment notifications to all worker phones');
+          // Send notifications to all worker phones
+          for (const phone of workerDetails.phones) {
+            console.log('Sending assignment notification to:', phone.phone_number);
+            await sendWorkerNotification(phone.phone_number, order);
+          }
         }
       } else {
         console.log('No worker change detected, skipping notifications');
