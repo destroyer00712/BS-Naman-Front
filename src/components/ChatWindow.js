@@ -301,11 +301,24 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         throw new Error('No media URL found in response');
       }
 
-      // Return the media data with the Facebook URL directly
+      // Use the proxy endpoint to fetch media content (avoids CORS issues)
+      const proxyUrl = `https://bsgold-api.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
+      console.log('Fetching from proxy URL:', proxyUrl);
+      
+      const mediaResponse = await fetch(proxyUrl);
+      
+      if (!mediaResponse.ok) {
+        throw new Error(`Proxy API returned ${mediaResponse.status}: ${await mediaResponse.text()}`);
+      }
+      
+      const blob = await mediaResponse.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Return the media data with blob URL (no server upload needed)
       return {
-        url: mediaDetails.url,
+        url: blobUrl,
         type: mediaDetails.mime_type || 'application/octet-stream',
-        requiresAuth: true // Flag to indicate this URL needs authorization
+        isBlob: true // Flag to indicate this is a blob URL that needs cleanup
       };
     } catch (error) {
       console.error('Error in fetchMediaContent:', error);
@@ -335,11 +348,11 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
 
   useEffect(() => {
     return () => {
-      if (activeMedia?.url) {
+      if (activeMedia?.url && activeMedia?.isBlob) {
         URL.revokeObjectURL(activeMedia.url);
       }
     };
-  }, []);
+  }, [activeMedia]);
 
   const getMessageStyle = (senderType) => {
     const baseStyle = {
@@ -436,34 +449,22 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-      const fetchMediaFromUrl = async () => {
+      const handleMedia = async () => {
         try {
           setIsLoading(true);
           setError(null);
           
-          // If the media requires auth (Facebook URL), fetch with authorization
-          if (media.requiresAuth) {
-            console.log('Fetching media with auth from URL:', media.url);
-            const response = await fetch(media.url, {
-              headers: {
-                'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
-              }
-            });
-            
-            if (!response.ok) {
-              throw new Error(`Failed to fetch media: ${response.status}`);
-            }
-            
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            setMediaUrl(url);
+          // If it's a blob URL, use it directly
+          if (media.isBlob) {
+            console.log('Using blob URL directly:', media.url);
+            setMediaUrl(media.url);
           } else {
             // For other URLs, use directly
             console.log('Using media URL directly:', media.url);
             setMediaUrl(media.url);
           }
         } catch (err) {
-          console.error('Error fetching media:', err);
+          console.error('Error handling media:', err);
           setError(err.message);
         } finally {
           setIsLoading(false);
@@ -471,12 +472,13 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       };
 
       if (media?.url) {
-        fetchMediaFromUrl();
+        handleMedia();
       }
 
+      // Cleanup blob URL when component unmounts
       return () => {
-        if (mediaUrl && media.requiresAuth) {
-          URL.revokeObjectURL(mediaUrl);
+        if (media?.isBlob && media?.url) {
+          URL.revokeObjectURL(media.url);
         }
       };
     }, [media]);
