@@ -355,8 +355,8 @@ const OrdersSidebar = ({ onOrderSelect }) => {
       // Fetch worker details to get all associated phone numbers
       const workerDetails = await fetchWorkerDetails(workerPhone);
       
-      // Update the order using the reassignment API
-      const response = await fetch(`${config.API_ROOT}/api/orders/${currentOrder.order_id}/reassign`, {
+      // Update the order using the assignment API
+      const response = await fetch(`${config.API_ROOT}/api/orders/${currentOrder.order_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -367,7 +367,8 @@ const OrdersSidebar = ({ onOrderSelect }) => {
             ...currentOrder.jewellery_details,
             status: 'accepted'
           },
-          'worker-phone': workerPhone
+          worker_phone: workerPhone,
+          employee_code: "EMP123456" // You may want to make this dynamic based on your requirements
         })
       });
 
@@ -389,7 +390,7 @@ const OrdersSidebar = ({ onOrderSelect }) => {
           ...currentOrder.jewellery_details, 
           status: 'accepted'
         },
-        'worker-phone': workerPhone
+        worker_phone: workerPhone
       });
     } catch (error) {
       console.error('Error in worker assignment process:', error);
