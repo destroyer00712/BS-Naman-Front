@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import config from '../modules/config';
 import '../css/OrdersSidebar.css';
+import { Search, Menu, X, MessageSquare, Clock, CheckCircle, XCircle, User } from 'lucide-react';
+import { getPrimaryPhone, getWorkerDisplayName } from '../utils/workerUtils';
 
 
 const socket = io(config.SOCKET_IO_SERVER_URL); // Replace 3001 with your backend port
@@ -69,6 +71,7 @@ const WorkerSelectionModal = ({ show, onClose, onConfirm, workers }) => {
             </div>
             <div className="modal-body">
               <div className="form-group">
+                <label className="form-label">Select Worker</label>
                 <select 
                   className="form-select"
                   value={selectedWorker}
@@ -76,11 +79,18 @@ const WorkerSelectionModal = ({ show, onClose, onConfirm, workers }) => {
                 >
                   <option value="">Select a worker...</option>
                   {workers.map(worker => (
-                    <option key={worker.phone_number} value={worker.phone_number}>
-                      {worker.name}
+                    <option key={worker.id} value={getPrimaryPhone(worker.phones)}>
+                      {getWorkerDisplayName(worker)}
                     </option>
                   ))}
                 </select>
+                {selectedWorker && (
+                  <div className="mt-2">
+                    <small className="text-muted">
+                      Worker will be notified on all their registered phone numbers
+                    </small>
+                  </div>
+                )}
               </div>
             </div>
             <div className="modal-footer">

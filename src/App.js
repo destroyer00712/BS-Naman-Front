@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import config from './modules/config';
@@ -8,6 +8,10 @@ import OrderDetails from './components/OrderDetails';
 import AudioViewer from './components/AudioViewer';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import BlobRedirectPage from './components/BlobRedirectPage';
+import LoginPage from './components/LoginPage';
+import WorkerModal from './components/WorkerModal';
+import './App.css';
+import { getPrimaryPhone, getWorkerDisplayName } from './utils/workerUtils';
 
 // Login Component
 const LoginPage = ({ onLogin }) => {
@@ -90,6 +94,7 @@ const WorkerSelectionModal = ({ show, onClose, onConfirm, workers }) => {
             </div>
             <div className="modal-body">
               <div className="form-group">
+                <label className="form-label">Select Worker</label>
                 <select 
                   className="form-select"
                   value={selectedWorker}
@@ -97,11 +102,18 @@ const WorkerSelectionModal = ({ show, onClose, onConfirm, workers }) => {
                 >
                   <option value="">Select a worker...</option>
                   {workers.map(worker => (
-                    <option key={worker.phone_number} value={worker.phone_number}>
-                      {worker.name}
+                    <option key={worker.id} value={getPrimaryPhone(worker.phones)}>
+                      {getWorkerDisplayName(worker)}
                     </option>
                   ))}
                 </select>
+                {selectedWorker && (
+                  <div className="mt-2">
+                    <small className="text-muted">
+                      Worker will be notified on all their registered phone numbers
+                    </small>
+                  </div>
+                )}
               </div>
             </div>
             <div className="modal-footer">

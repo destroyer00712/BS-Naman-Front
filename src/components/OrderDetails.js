@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import config from '../modules/config';
+import { getPrimaryPhone, getWorkerDisplayName } from '../utils/workerUtils';
 
 const OrderDetails = ({ order, onClose }) => {
   const [workers, setWorkers] = useState([]);
@@ -320,11 +321,18 @@ const OrderDetails = ({ order, onClose }) => {
             >
               <option value="">Select a worker</option>
               {workers.map((worker) => (
-                <option key={worker.phone_number} value={worker.phone_number}>
-                  {worker.name} ({worker.phone_number})
+                <option key={worker.id} value={getPrimaryPhone(worker.phones)}>
+                  {getWorkerDisplayName(worker)}
                 </option>
               ))}
             </select>
+            {selectedWorker && (
+              <div className="mt-2">
+                <small className="text-muted">
+                  Worker will be notified on all their registered phone numbers
+                </small>
+              </div>
+            )}
           </div>
 
           <div className="mb-4">
