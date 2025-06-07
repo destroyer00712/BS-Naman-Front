@@ -283,7 +283,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   const fetchMediaContent = async (mediaId) => {
     setIsLoadingMedia(true);
     try {
-      // First get the media URL from WhatsApp API
+      // Get the media URL from WhatsApp API
       const detailsResponse = await fetch(`${config.ENDPOINTS.WHATSAPP_MEDIA(mediaId)}`, {
         headers: {
           'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
@@ -301,80 +301,15 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         throw new Error('No media URL found in response');
       }
 
-      // Use the proxy endpoint with the correct URL parameter
-      const proxyUrl = `https://bsgold.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
-      console.log('Fetching from proxy URL:', proxyUrl);
-      
-      const mediaResponse = await fetch(proxyUrl);
-      
-      if (!mediaResponse.ok) {
-        throw new Error(`Proxy API returned ${mediaResponse.status}: ${await mediaResponse.text()}`);
-      }
-      
-      const blob = await mediaResponse.blob();
-      const mimeType = mediaDetails.mime_type || 'application/octet-stream';
-      
-      // Get file extension from mime type
-      let fileExtension = '';
-      switch (mimeType) {
-        case 'image/jpeg':
-          fileExtension = '.jpg';
-          break;
-        case 'image/png':
-          fileExtension = '.png';
-          break;
-        case 'image/gif':
-          fileExtension = '.gif';
-          break;
-        case 'image/webp':
-          fileExtension = '.webp';
-          break;
-        case 'video/mp4':
-          fileExtension = '.mp4';
-          break;
-        case 'video/quicktime':
-          fileExtension = '.mov';
-          break;
-        case 'audio/mpeg':
-          fileExtension = '.mp3';
-          break;
-        case 'audio/ogg':
-          fileExtension = '.ogg';
-          break;
-        default:
-          // For unknown types, try to extract extension from mime type
-          const ext = mimeType.split('/')[1];
-          if (ext) {
-            fileExtension = `.${ext}`;
-          }
-      }
-      
-      // Create a FormData object to send the file with proper extension
-      const formData = new FormData();
-      formData.append('file', blob, `media_${Date.now()}${fileExtension}`);
-      formData.append('type', mimeType);
-      
-      // Upload the file to our server
-      const uploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload API returned ${uploadResponse.status}: ${await uploadResponse.text()}`);
-      }
-      
-      const { permanentUrl } = await uploadResponse.json();
-      console.log('Upload successful, permanent URL:', permanentUrl);
-      
-      // Return the media data with the permanent URL using the correct base URL
+      // Return the media data with the Facebook URL directly
       return {
-        url: `https://bsgold-api.chatloom.in${permanentUrl}`,
-        type: mimeType
+        url: mediaDetails.url,
+        type: mediaDetails.mime_type || 'application/octet-stream',
+        requiresAuth: true // Flag to indicate this URL needs authorization
       };
     } catch (error) {
       console.error('Error in fetchMediaContent:', error);
-      throw error; // Re-throw to handle in the calling function
+      throw error;
     } finally {
       setIsLoadingMedia(false);
     }
@@ -506,17 +441,27 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
           setIsLoading(true);
           setError(null);
           
-          // Use the URL directly since it's already in the correct format
-          console.log('Fetching media from URL:', media.url);
-          const response = await fetch(media.url);
-          
-          if (!response.ok) {
-            throw new Error(`Failed to fetch media: ${response.status}`);
+          // If the media requires auth (Facebook URL), fetch with authorization
+          if (media.requiresAuth) {
+            console.log('Fetching media with auth from URL:', media.url);
+            const response = await fetch(media.url, {
+              headers: {
+                'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
+              }
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Failed to fetch media: ${response.status}`);
+            }
+            
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            setMediaUrl(url);
+          } else {
+            // For other URLs, use directly
+            console.log('Using media URL directly:', media.url);
+            setMediaUrl(media.url);
           }
-          
-          const blob = await response.blob();
-          const url = URL.createObjectURL(blob);
-          setMediaUrl(url);
         } catch (err) {
           console.error('Error fetching media:', err);
           setError(err.message);
@@ -530,7 +475,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       }
 
       return () => {
-        if (mediaUrl) {
+        if (mediaUrl && media.requiresAuth) {
           URL.revokeObjectURL(mediaUrl);
         }
       };
@@ -624,7 +569,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       // Handle media messages
       if (message.media_id) {
         try {
-          // First get the media URL from WhatsApp API
+          // Get the media URL from WhatsApp API
           const mediaDetails = await fetch(`${config.ENDPOINTS.WHATSAPP_MEDIA(message.media_id)}`, {
             headers: {
               'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
@@ -635,71 +580,12 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
             throw new Error('No media URL found');
           }
 
-          // Use the proxy endpoint with the correct URL parameter
-          const proxyUrl = `https://bsgold.chatloom.in/api/proxy-fb-media?url=${encodeURIComponent(mediaDetails.url)}`;
-          const mediaResponse = await fetch(proxyUrl);
-          
-          if (!mediaResponse.ok) throw new Error('Failed to fetch media content');
-          
-          const blob = await mediaResponse.blob();
-          const mimeType = message.media_type || mediaDetails.mime_type || 'application/octet-stream';
-          
-          // Get file extension from mime type
-          let fileExtension = '';
-          switch (mimeType) {
-            case 'image/jpeg':
-              fileExtension = '.jpg';
-              break;
-            case 'image/png':
-              fileExtension = '.png';
-              break;
-            case 'image/gif':
-              fileExtension = '.gif';
-              break;
-            case 'image/webp':
-              fileExtension = '.webp';
-              break;
-            case 'video/mp4':
-              fileExtension = '.mp4';
-              break;
-            case 'video/quicktime':
-              fileExtension = '.mov';
-              break;
-            case 'audio/mpeg':
-              fileExtension = '.mp3';
-              break;
-            case 'audio/ogg':
-              fileExtension = '.ogg';
-              break;
-            default:
-              // For unknown types, try to extract extension from mime type
-              const ext = mimeType.split('/')[1];
-              if (ext) {
-                fileExtension = `.${ext}`;
-              }
-          }
-          
-          // Create a FormData object to send the file with proper extension
-          const formData = new FormData();
-          formData.append('file', blob, `media_${Date.now()}${fileExtension}`);
-          formData.append('type', mimeType);
-          
-          // Upload the file to our server
-          const uploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
-            method: 'POST',
-            body: formData
-          });
-          
-          if (!uploadResponse.ok) throw new Error('Failed to upload media');
-          
-          const { permanentUrl } = await uploadResponse.json();
-          
-          // Use the permanent URL in the message with the correct base URL
+          // Use the Facebook URL directly in the message
           templateComponents = [{
             type: "body",
             parameters: [
               { type: "text", text: selectedOrder.order_id },
-              { type: "text", text: `https://bsgold-api.chatloom.in${permanentUrl}` }
+              { type: "text", text: mediaDetails.url }
             ]
           }];
         } catch (error) {
