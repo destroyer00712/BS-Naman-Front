@@ -1,17 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import config from '../modules/config';
-import { getPrimaryPhone, getWorkerDisplayName } from '../utils/workerUtils';
+import { getPrimaryPhone, getWorkerDisplayName, getWorkerByPhone } from '../utils/workerUtils';
 
 const OrderDetails = ({ order, onClose }) => {
   const [workers, setWorkers] = useState([]);
-  const [selectedWorker, setSelectedWorker] = useState(order?.jewellery_details?.['worker-phone'] || '');
+  const [selectedWorker, setSelectedWorker] = useState('');
   const [isCompleted, setIsCompleted] = useState(order?.jewellery_details?.status === 'completed');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     fetchWorkers();
   }, []);
+
+  // Update selectedWorker when workers are loaded and order changes
+  useEffect(() => {
+    if (workers.length > 0 && order?.jewellery_details?.['worker-phone']) {
+      const assignedWorker = getWorkerByPhone(workers, order.jewellery_details['worker-phone']);
+      if (assignedWorker) {
+        // Set the primary phone of the assigned worker as selected
+        setSelectedWorker(getPrimaryPhone(assignedWorker.phones));
+      } else {
+        // If worker not found, keep the stored phone (might be legacy data)
+        setSelectedWorker(order.jewellery_details['worker-phone']);
+      }
+    } else if (!order?.jewellery_details?.['worker-phone']) {
+      setSelectedWorker('');
+    }
+  }, [workers, order]);
 
   const fetchWorkers = async () => {
     try {
@@ -266,9 +282,20 @@ const OrderDetails = ({ order, onClose }) => {
         // Send notification to customer
         await sendCompletionNotification(order.client_details.phone, order);
         
-        // Send notification to worker if there is one assigned
+        // Send notification to all worker phones if there is one assigned
         if (order.jewellery_details['worker-phone']) {
-          await sendCompletionNotification(order.jewellery_details['worker-phone'], order);
+          try {
+            const workerDetails = await fetchWorkerDetails(order.jewellery_details['worker-phone']);
+            console.log('Sending completion notifications to all worker phones');
+            for (const phone of workerDetails.phones) {
+              console.log('Sending completion notification to:', phone.phone_number);
+              await sendCompletionNotification(phone.phone_number, order);
+            }
+          } catch (error) {
+            console.error('Error fetching worker details for completion notification:', error);
+            // Fallback to sending to the stored phone number
+            await sendCompletionNotification(order.jewellery_details['worker-phone'], order);
+          }
         }
       }
     } catch (error) {
@@ -313,6 +340,18 @@ const OrderDetails = ({ order, onClose }) => {
 
           <div className="mb-4">
             <h6 className="text-muted mb-2">Worker Assignment</h6>
+            {order?.jewellery_details?.['worker-phone'] && (
+              <div className="mb-2">
+                <small className="text-info">
+                  <strong>Currently assigned to:</strong> {
+                    (() => {
+                      const assignedWorker = getWorkerByPhone(workers, order.jewellery_details['worker-phone']);
+                      return assignedWorker ? getWorkerDisplayName(assignedWorker) : order.jewellery_details['worker-phone'];
+                    })()
+                  }
+                </small>
+              </div>
+            )}
             <select 
               className="form-select"
               value={selectedWorker}
@@ -320,11 +359,14 @@ const OrderDetails = ({ order, onClose }) => {
               disabled={isLoading}
             >
               <option value="">Select a worker</option>
-              {workers.map((worker) => (
-                <option key={worker.id} value={getPrimaryPhone(worker.phones)}>
-                  {getWorkerDisplayName(worker)}
-                </option>
-              ))}
+              {workers.map((worker) => {
+                const isCurrentlyAssigned = getWorkerByPhone([worker], order?.jewellery_details?.['worker-phone']);
+                return (
+                  <option key={worker.id} value={getPrimaryPhone(worker.phones)}>
+                    {getWorkerDisplayName(worker)}{isCurrentlyAssigned ? ' (Currently Assigned)' : ''}
+                  </option>
+                );
+              })}
             </select>
             {selectedWorker && (
               <div className="mt-2">

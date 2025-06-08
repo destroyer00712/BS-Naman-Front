@@ -365,10 +365,9 @@ const OrdersSidebar = ({ onOrderSelect }) => {
           client_details: currentOrder.client_details,
           jewellery_details: {
             ...currentOrder.jewellery_details,
-            status: 'accepted'
-          },
-          worker_phone: workerPhone,
-          employee_code: "EMP123456" // You may want to make this dynamic based on your requirements
+            status: 'accepted',
+            'worker-phone': workerPhone  // Store in jewellery_details for consistency
+          }
         })
       });
 
@@ -383,14 +382,14 @@ const OrdersSidebar = ({ onOrderSelect }) => {
         await sendWorkerNotification(phone.phone_number, currentOrder);
       }
       
-      // Update the UI
+      // Update the UI with the updated order structure
       onOrderSelect({ 
         ...currentOrder, 
         jewellery_details: { 
           ...currentOrder.jewellery_details, 
-          status: 'accepted'
-        },
-        worker_phone: workerPhone
+          status: 'accepted',
+          'worker-phone': workerPhone
+        }
       });
     } catch (error) {
       console.error('Error in worker assignment process:', error);
