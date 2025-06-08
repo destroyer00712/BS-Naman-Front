@@ -312,13 +312,77 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       }
       
       const blob = await mediaResponse.blob();
-      const blobUrl = URL.createObjectURL(blob);
+      const mimeType = mediaDetails.mime_type || 'application/octet-stream';
+      
+      // Get file extension from mime type
+      let fileExtension = '';
+      switch (mimeType) {
+        case 'image/jpeg':
+          fileExtension = '.jpg';
+          break;
+        case 'image/png':
+          fileExtension = '.png';
+          break;
+        case 'image/gif':
+          fileExtension = '.gif';
+          break;
+        case 'image/webp':
+          fileExtension = '.webp';
+          break;
+        case 'video/mp4':
+          fileExtension = '.mp4';
+          break;
+        case 'video/quicktime':
+          fileExtension = '.mov';
+          break;
+        case 'audio/mpeg':
+          fileExtension = '.mp3';
+          break;
+        case 'audio/ogg':
+          fileExtension = '.ogg';
+          break;
+        case 'audio/wav':
+          fileExtension = '.wav';
+          break;
+        case 'audio/m4a':
+          fileExtension = '.m4a';
+          break;
+        default:
+          // For unknown types, try to extract extension from mime type
+          const ext = mimeType.split('/')[1];
+          if (ext) {
+            fileExtension = `.${ext}`;
+          }
+      }
+      
+      // Upload to permanent storage
+      const formData = new FormData();
+      formData.append('file', blob, `media_${Date.now()}${fileExtension}`);
+      formData.append('type', mimeType);
+      
+      console.log('Uploading media to permanent storage...');
+      const uploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed: ${uploadResponse.status} ${await uploadResponse.text()}`);
+      }
+      
+      const uploadResult = await uploadResponse.json();
+      console.log('Upload successful:', uploadResult);
+      
+      if (!uploadResult.success || !uploadResult.permanentUrl) {
+        throw new Error('Upload response missing permanent URL');
+      }
 
-      // Return the media data with blob URL (no server upload needed)
+      // Return the media data with permanent URL
       return {
-        url: blobUrl,
-        type: mediaDetails.mime_type || 'application/octet-stream',
-        isBlob: true // Flag to indicate this is a blob URL that needs cleanup
+        url: `${config.API_ROOT}${uploadResult.permanentUrl}`,
+        type: mimeType,
+        isPermanent: true,
+        filename: uploadResult.filename
       };
     } catch (error) {
       console.error('Error in fetchMediaContent:', error);
@@ -348,6 +412,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
 
   useEffect(() => {
     return () => {
+      // Only revoke blob URLs, not permanent URLs
       if (activeMedia?.url && activeMedia?.isBlob) {
         URL.revokeObjectURL(activeMedia.url);
       }
@@ -454,9 +519,9 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
           setIsLoading(true);
           setError(null);
           
-          // If it's a blob URL, use it directly
-          if (media.isBlob) {
-            console.log('Using blob URL directly:', media.url);
+          // For permanent URLs, use directly
+          if (media.isPermanent) {
+            console.log('Using permanent URL directly:', media.url);
             setMediaUrl(media.url);
           } else {
             // For other URLs, use directly
@@ -475,8 +540,9 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         handleMedia();
       }
 
-      // Cleanup blob URL when component unmounts
+      // No cleanup needed for permanent URLs
       return () => {
+        // Only revoke blob URLs, not permanent URLs
         if (media?.isBlob && media?.url) {
           URL.revokeObjectURL(media.url);
         }
@@ -571,23 +637,19 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       // Handle media messages
       if (message.media_id) {
         try {
-          // Get the media URL from WhatsApp API
-          const mediaDetails = await fetch(`${config.ENDPOINTS.WHATSAPP_MEDIA(message.media_id)}`, {
-            headers: {
-              'Authorization': `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`
-            }
-          }).then(res => res.json());
-
-          if (!mediaDetails.url) {
-            throw new Error('No media URL found');
+          // Fetch media and upload to permanent storage
+          const mediaData = await fetchMediaContent(message.media_id);
+          
+          if (!mediaData.url) {
+            throw new Error('No permanent URL found for media');
           }
 
-          // Use the Facebook URL directly in the message
+          // Use the permanent URL in the message
           templateComponents = [{
             type: "body",
             parameters: [
               { type: "text", text: selectedOrder.order_id },
-              { type: "text", text: mediaDetails.url }
+              { type: "text", text: mediaData.url }
             ]
           }];
         } catch (error) {
