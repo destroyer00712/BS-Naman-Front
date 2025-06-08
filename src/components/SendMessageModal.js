@@ -66,6 +66,90 @@ const SendMessageModal = ({
     }
   };
 
+  // Helper function to validate phone numbers
+  const isValidPhoneNumber = (phoneNumber) => {
+    if (!phoneNumber || typeof phoneNumber !== 'string') return false;
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    return cleanPhone.length >= 10 && cleanPhone.length <= 15 && !phoneNumber.includes('DEFAULT_');
+  };
+
+  // Optimized function to send messages to workers
+  const sendMessagesToWorkers = async () => {
+    try {
+      // Fetch all worker phone numbers
+      const workerResponse = await fetch(`${config.API_ROOT}/api/workers/${selectedOrder.worker_phone}`);
+      const workerData = await workerResponse.json();
+      
+      // Handle both single worker and multiple workers response format
+      const workers = workerData.workers || [workerData.worker];
+      
+      const results = [];
+      const allSendPromises = [];
+      
+      for (const worker of workers) {
+        if (!worker.phones || !Array.isArray(worker.phones)) continue;
+        
+        // Filter valid phone numbers
+        const validPhones = worker.phones.filter(phone => isValidPhoneNumber(phone.phone_number));
+
+        if (validPhones.length === 0) {
+          console.warn(`No valid phone numbers found for worker: ${worker.name}`);
+          continue;
+        }
+
+        // Send to ALL valid phone numbers for this worker
+        const workerSendPromises = validPhones.map(async (phone) => {
+          const success = await sendWhatsAppMessage(phone.phone_number, selectedOrder.order_id, message);
+          return {
+            workerId: worker.id,
+            workerName: worker.name,
+            phoneNumber: phone.phone_number,
+            isPrimary: phone.is_primary,
+            success: success
+          };
+        });
+
+        allSendPromises.push(...workerSendPromises);
+      }
+
+      // Execute all send operations in parallel
+      const allResults = await Promise.all(allSendPromises);
+      
+      // Group results by worker
+      const workerResults = {};
+      allResults.forEach(result => {
+        if (!workerResults[result.workerId]) {
+          workerResults[result.workerId] = {
+            workerId: result.workerId,
+            workerName: result.workerName,
+            phoneResults: [],
+            successCount: 0,
+            totalPhones: 0
+          };
+        }
+        workerResults[result.workerId].phoneResults.push({
+          phoneNumber: result.phoneNumber,
+          isPrimary: result.isPrimary,
+          success: result.success
+        });
+        workerResults[result.workerId].totalPhones++;
+        if (result.success) {
+          workerResults[result.workerId].successCount++;
+        }
+      });
+
+      // Log detailed results for debugging
+      console.log('Worker message sending results:', workerResults);
+      
+      // Return true if at least one phone number received the message successfully
+      return Object.values(workerResults).some(worker => worker.successCount > 0);
+      
+    } catch (error) {
+      console.error('Error sending to worker phones:', error);
+      return false;
+    }
+  };
+
   const saveMessage = async () => {
     try {
       const recipients = [];
@@ -108,25 +192,8 @@ const SendMessageModal = ({
       }
 
       if (recipientType === 'worker' || recipientType === 'both') {
-        try {
-          // Fetch all worker phone numbers
-          const workerResponse = await fetch(`${config.API_ROOT}/api/workers/${selectedOrder.worker_phone}`);
-          const workerData = await workerResponse.json();
-          const workerPhones = workerData.worker.phones.map(phone => phone.phone_number);
-
-          // Send message to all worker phones
-          const workerSendPromises = workerPhones.map(async (phoneNumber) => {
-            const workerSuccess = await sendWhatsAppMessage(phoneNumber, selectedOrder.order_id, message);
-            return workerSuccess;
-          });
-
-          const workerResults = await Promise.all(workerSendPromises);
-          const workerSuccess = workerResults.every(result => result === true);
-          success = success && workerSuccess;
-        } catch (error) {
-          console.error('Error sending to worker phones:', error);
-          success = false;
-        }
+        const workerSuccess = await sendMessagesToWorkers();
+        success = success && workerSuccess;
       }
 
       if (success) {
