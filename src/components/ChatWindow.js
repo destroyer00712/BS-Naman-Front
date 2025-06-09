@@ -377,13 +377,94 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
         throw new Error('Upload response missing permanent URL');
       }
 
-      // Return the media data with permanent URL
-      return {
-        url: `${config.API_ROOT}${uploadResult.permanentUrl}`,
-        type: mimeType,
-        isPermanent: true,
-        filename: uploadResult.filename
-      };
+      const permanentUrl = `${config.API_ROOT}${uploadResult.permanentUrl}`;
+
+      // Verify the permanent URL is accessible before returning it
+      try {
+        console.log('Verifying permanent URL accessibility:', permanentUrl);
+        const verifyResponse = await fetch(permanentUrl, { method: 'HEAD' });
+        
+        if (!verifyResponse.ok) {
+          console.warn('Permanent URL not accessible, attempting re-upload...');
+          throw new Error('Permanent URL not accessible');
+        }
+        
+        // Return the media data with permanent URL
+        return {
+          url: permanentUrl,
+          type: mimeType,
+          isPermanent: true,
+          filename: uploadResult.filename
+        };
+      } catch (verifyError) {
+        console.error('Error verifying permanent URL:', verifyError);
+        console.log('Attempting re-upload using Facebook URL...');
+        
+        // Fallback: Re-upload using the original Facebook URL
+        try {
+          // Fetch from Facebook URL again
+          const fallbackResponse = await fetch(proxyUrl);
+          if (!fallbackResponse.ok) {
+            throw new Error(`Fallback fetch failed: ${fallbackResponse.status}`);
+          }
+          
+          const fallbackBlob = await fallbackResponse.blob();
+          
+          // Try uploading again with a different filename
+          const fallbackFormData = new FormData();
+          fallbackFormData.append('file', fallbackBlob, `media_fallback_${Date.now()}${fileExtension}`);
+          fallbackFormData.append('type', mimeType);
+          
+          const fallbackUploadResponse = await fetch(`${config.API_ROOT}/api/media/upload`, {
+            method: 'POST',
+            body: fallbackFormData
+          });
+          
+          if (!fallbackUploadResponse.ok) {
+            throw new Error(`Fallback upload failed: ${fallbackUploadResponse.status}`);
+          }
+          
+          const fallbackUploadResult = await fallbackUploadResponse.json();
+          
+          if (!fallbackUploadResult.success || !fallbackUploadResult.permanentUrl) {
+            throw new Error('Fallback upload response missing permanent URL');
+          }
+          
+          const fallbackPermanentUrl = `${config.API_ROOT}${fallbackUploadResult.permanentUrl}`;
+          
+          // Verify the fallback URL
+          const fallbackVerifyResponse = await fetch(fallbackPermanentUrl, { method: 'HEAD' });
+          
+          if (!fallbackVerifyResponse.ok) {
+            // If fallback also fails, use the original Facebook URL as last resort
+            console.warn('Fallback upload also failed, using original Facebook URL');
+            return {
+              url: mediaDetails.url,
+              type: mimeType,
+              isPermanent: false,
+              isTemporary: true
+            };
+          }
+          
+          console.log('Fallback upload successful:', fallbackPermanentUrl);
+          return {
+            url: fallbackPermanentUrl,
+            type: mimeType,
+            isPermanent: true,
+            filename: fallbackUploadResult.filename
+          };
+        } catch (fallbackError) {
+          console.error('Fallback upload failed:', fallbackError);
+          // Use original Facebook URL as last resort
+          console.log('Using original Facebook URL as last resort');
+          return {
+            url: mediaDetails.url,
+            type: mimeType,
+            isPermanent: false,
+            isTemporary: true
+          };
+        }
+      }
     } catch (error) {
       console.error('Error in fetchMediaContent:', error);
       throw error;
