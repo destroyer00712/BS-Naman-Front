@@ -42,24 +42,28 @@ const WorkerModal = ({ onClose }) => {
       return;
     }
 
+    // Transform phones array to match API format
+    const primaryPhone = validation.validPhones.find(phone => phone.is_primary);
+    const secondaryPhones = validation.validPhones.filter(phone => !phone.is_primary);
+    
+    const workerData = {
+      name: formData.name,
+      primary_phone: primaryPhone ? primaryPhone.phone_number : validation.validPhones[0]?.phone_number || '',
+      secondary_phones: secondaryPhones.map(phone => phone.phone_number)
+    };
+
     try {
       if (isEditing) {
         await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKER_DETAILS(editingWorkerId)}`, {
           method: 'PUT',  
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            name: formData.name,
-            phones: validation.validPhones
-          })
+          body: JSON.stringify(workerData)
         });
       } else {
         await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKERS}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: formData.name,
-            phones: validation.validPhones
-          })
+          body: JSON.stringify(workerData)
         });
       }
       await fetchWorkers();
