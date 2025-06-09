@@ -15,16 +15,16 @@ const OrderDetails = ({ order, onClose }) => {
 
   // Update selectedWorker when workers are loaded and order changes
   useEffect(() => {
-    if (workers.length > 0 && order?.jewellery_details?.['worker-phone']) {
-      const assignedWorker = getWorkerByPhone(workers, order.jewellery_details['worker-phone']);
+    if (workers.length > 0 && order?.worker_phone) {
+      const assignedWorker = getWorkerByPhone(workers, order.worker_phone);
       if (assignedWorker) {
         // Set the primary phone of the assigned worker as selected
         setSelectedWorker(getPrimaryPhone(assignedWorker.phones));
       } else {
         // If worker not found, keep the stored phone (might be legacy data)
-        setSelectedWorker(order.jewellery_details['worker-phone']);
+        setSelectedWorker(order.worker_phone);
       }
-    } else if (!order?.jewellery_details?.['worker-phone']) {
+    } else if (!order?.worker_phone) {
       setSelectedWorker('');
     }
   }, [workers, order]);
@@ -206,7 +206,7 @@ const OrderDetails = ({ order, onClose }) => {
     setIsLoading(true);
     try {
       console.log('Updating order with worker:', workerPhone);
-      console.log('Current worker:', order.jewellery_details['worker-phone']);
+      console.log('Current worker:', order.worker_phone);
       
       // Fetch worker details to get all associated phone numbers
       const workerDetails = await fetchWorkerDetails(workerPhone);
@@ -215,9 +215,9 @@ const OrderDetails = ({ order, onClose }) => {
         client_details: {
           phone: order.client_details.phone
         },
+        worker_phone: workerPhone,
         jewellery_details: {
           ...order.jewellery_details,
-          'worker-phone': workerPhone,
           status: status
         }
       };
@@ -232,12 +232,12 @@ const OrderDetails = ({ order, onClose }) => {
       });
 
       // Only send worker notifications if the worker is actually changing
-      const isWorkerChange = workerPhone !== order.jewellery_details['worker-phone'];
+      const isWorkerChange = workerPhone !== order.worker_phone;
       if (isWorkerChange) {
         console.log('Worker changed, sending notifications');
-        if (order.jewellery_details['worker-phone']) {
+        if (order.worker_phone) {
           // Fetch previous worker's details to get all their phone numbers
-          const previousWorkerDetails = await fetchWorkerDetails(order.jewellery_details['worker-phone']);
+          const previousWorkerDetails = await fetchWorkerDetails(order.worker_phone);
           console.log('Sending removal notifications to all previous worker phones');
           // Send removal notifications to all previous worker's phones
           for (const phone of previousWorkerDetails.phones) {
@@ -275,7 +275,7 @@ const OrderDetails = ({ order, onClose }) => {
     
     try {
       // Update the order status
-      await updateOrder(order.jewellery_details['worker-phone'], checked ? 'completed' : 'accepted');
+      await updateOrder(order.worker_phone, checked ? 'completed' : 'accepted');
       
       // If order is being marked as completed, send notifications
       if (checked) {
@@ -283,9 +283,9 @@ const OrderDetails = ({ order, onClose }) => {
         await sendCompletionNotification(order.client_details.phone, order);
         
         // Send notification to all worker phones if there is one assigned
-        if (order.jewellery_details['worker-phone']) {
+        if (order.worker_phone) {
           try {
-            const workerDetails = await fetchWorkerDetails(order.jewellery_details['worker-phone']);
+            const workerDetails = await fetchWorkerDetails(order.worker_phone);
             console.log('Sending completion notifications to all worker phones');
             for (const phone of workerDetails.phones) {
               console.log('Sending completion notification to:', phone.phone_number);
@@ -294,7 +294,7 @@ const OrderDetails = ({ order, onClose }) => {
           } catch (error) {
             console.error('Error fetching worker details for completion notification:', error);
             // Fallback to sending to the stored phone number
-            await sendCompletionNotification(order.jewellery_details['worker-phone'], order);
+            await sendCompletionNotification(order.worker_phone, order);
           }
         }
       }
@@ -340,18 +340,21 @@ const OrderDetails = ({ order, onClose }) => {
 
           <div className="mb-4">
             <h6 className="text-muted mb-2">Worker Assignment</h6>
-            {order?.jewellery_details?.['worker-phone'] && (
-              <div className="mb-2">
-                <small className="text-info">
-                  <strong>Currently assigned to:</strong> {
+            <div className="mb-3 p-3 bg-light rounded">
+              <div className="d-flex justify-content-between align-items-center">
+                <span><strong>Currently Assigned:</strong></span>
+                <span className={`badge ${order?.worker_phone ? 'bg-success' : 'bg-secondary'}`}>
+                  {order?.worker_phone ? (
                     (() => {
-                      const assignedWorker = getWorkerByPhone(workers, order.jewellery_details['worker-phone']);
-                      return assignedWorker ? getWorkerDisplayName(assignedWorker) : order.jewellery_details['worker-phone'];
+                      const assignedWorker = getWorkerByPhone(workers, order.worker_phone);
+                      return assignedWorker ? getWorkerDisplayName(assignedWorker) : order.worker_phone;
                     })()
-                  }
-                </small>
+                  ) : (
+                    'Not Assigned'
+                  )}
+                </span>
               </div>
-            )}
+            </div>
             <select 
               className="form-select"
               value={selectedWorker}
@@ -360,7 +363,7 @@ const OrderDetails = ({ order, onClose }) => {
             >
               <option value="">Select a worker</option>
               {workers.map((worker) => {
-                const isCurrentlyAssigned = getWorkerByPhone([worker], order?.jewellery_details?.['worker-phone']);
+                const isCurrentlyAssigned = getWorkerByPhone([worker], order?.worker_phone);
                 return (
                   <option key={worker.id} value={getPrimaryPhone(worker.phones)}>
                     {getWorkerDisplayName(worker)}{isCurrentlyAssigned ? ' (Currently Assigned)' : ''}
