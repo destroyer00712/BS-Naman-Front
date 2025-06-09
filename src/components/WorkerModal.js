@@ -74,10 +74,11 @@ const WorkerModal = ({ onClose }) => {
     }
   };
 
-  const handleDelete = async (workerId) => {
+  const handleDelete = async (worker) => {
     if (window.confirm('Are you sure you want to delete this worker?')) {
       try {
-        await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKER_DETAILS(workerId)}`, {
+        const primaryPhone = getPrimaryPhone(worker.phones);
+        await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKER_DETAILS(primaryPhone)}`, {
           method: 'DELETE'
         });
         await fetchWorkers();
@@ -93,7 +94,7 @@ const WorkerModal = ({ onClose }) => {
       phones: worker.phones.length > 0 ? worker.phones : [{ phone_number: '', is_primary: true }]
     });
     setIsEditing(true);
-    setEditingWorkerId(worker.id);
+    setEditingWorkerId(getPrimaryPhone(worker.phones));
     setShowForm(true);
   };
 
@@ -314,7 +315,7 @@ const WorkerModal = ({ onClose }) => {
                           </button>
                           <button
                             className="btn btn-sm btn-outline-danger"
-                            onClick={() => handleDelete(worker.id)}
+                            onClick={() => handleDelete(worker)}
                             title="Delete Worker"
                           >
                             <Trash2 size={16} />
