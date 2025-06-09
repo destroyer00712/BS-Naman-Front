@@ -27,11 +27,6 @@ const WorkerModal = ({ onClose }) => {
     setIsLoading(false);
   };
 
-  const getPrimaryPhone = (phones) => {
-    const primaryPhone = phones.find(phone => phone.is_primary);
-    return primaryPhone ? primaryPhone.phone_number : phones[0]?.phone_number || '';
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -78,6 +73,9 @@ const WorkerModal = ({ onClose }) => {
     if (window.confirm('Are you sure you want to delete this worker?')) {
       try {
         const primaryPhone = getPrimaryPhone(worker.phones);
+        console.log('Deleting worker:', worker);
+        console.log('Primary phone for deletion:', primaryPhone);
+        console.log('API URL:', `${config.API_ROOT}${config.ENDPOINTS.WORKER_DETAILS(primaryPhone)}`);
         await fetch(`${config.API_ROOT}${config.ENDPOINTS.WORKER_DETAILS(primaryPhone)}`, {
           method: 'DELETE'
         });
