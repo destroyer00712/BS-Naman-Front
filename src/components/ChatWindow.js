@@ -60,6 +60,15 @@ const SendMessageModal = ({
 
   const saveMessage = async () => {
     try {
+      // Determine recipients based on recipientType
+      const recipients = [];
+      if (recipientType === 'client' || recipientType === 'both') {
+        recipients.push('Client');
+      }
+      if (recipientType === 'worker' || recipientType === 'both') {
+        recipients.push('Worker');
+      }
+
       const response = await fetch(`${config.API_ROOT}${config.ENDPOINTS.MESSAGES}`, {
         method: 'POST',
         headers: {
@@ -68,7 +77,8 @@ const SendMessageModal = ({
         body: JSON.stringify({
           order_id: selectedOrder.order_id,
           content: message,
-          sender_type: 'enterprise'
+          sender_type: 'enterprise',
+          recipients: recipients
         })
       });
 
@@ -695,14 +705,31 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       if (targetType === 'client') {
         targetPhones = [selectedOrder.client_details.phone];
       } else {
-        // For worker, fetch all phone numbers
+        // For worker, fetch all phone numbers associated with this worker
+        const workerPhone = selectedOrder.jewellery_details['worker-phone'];
+        if (!workerPhone) {
+          throw new Error('Worker phone number not found in order details');
+        }
+        
         try {
-          const workerResponse = await fetch(`${config.API_ROOT}/api/workers/${selectedOrder.worker_phone}`);
+          const workerResponse = await fetch(`${config.API_ROOT}/api/workers/${workerPhone}`);
+          if (!workerResponse.ok) {
+            throw new Error(`Failed to fetch worker data: ${workerResponse.status}`);
+          }
           const workerData = await workerResponse.json();
-          targetPhones = workerData.worker.phones.map(phone => phone.phone_number);
+          
+          if (workerData.worker && workerData.worker.phones && Array.isArray(workerData.worker.phones)) {
+            targetPhones = workerData.worker.phones.map(phone => phone.phone_number);
+          } else {
+            // Fallback to using just the primary worker phone if API structure is different
+            console.warn('Worker phones array not found, using primary phone as fallback');
+            targetPhones = [workerPhone];
+          }
         } catch (error) {
           console.error('Error fetching worker phones:', error);
-          throw new Error('Failed to fetch worker phone numbers');
+          // Fallback to using just the primary worker phone
+          console.warn('Using primary worker phone as fallback due to API error');
+          targetPhones = [workerPhone];
         }
       }
 
@@ -847,8 +874,27 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
               const blobUrl = extractBlobUrl(message.content);
               const isClientMessage = message.sender_type === 'client';
               const isWorkerMessage = message.sender_type === 'worker';
+              const isEnterpriseMessage = message.sender_type === 'enterprise';
               const isForwarded = message.content.startsWith('Forwarded from');
               const isHighlighted = message.message_id === highlightedMessageId;
+              
+              // Determine message header and styling based on sender and recipients
+              const getMessageHeader = () => {
+                // Debug logging to see what recipient data we have
+                console.log('Message:', message.message_id, 'Recipients:', message.recipients, 'Sender:', message.sender_type);
+                
+                if (isClientMessage) {
+                  return { text: 'From Client', bgColor: '#E3F2FD', textColor: '#1976D2', showHeader: true };
+                } else if (isWorkerMessage) {
+                  return { text: 'From Worker', bgColor: '#F3E5F5', textColor: '#7B1FA2', showHeader: true };
+                } else if (isEnterpriseMessage) {
+                  // For enterprise messages (sent from dashboard), don't show header but keep styling
+                  return { text: '', bgColor: '#E8F5E8', textColor: '#2E7D32', showHeader: false };
+                }
+                return { text: 'Unknown', bgColor: '#FAFAFA', textColor: '#757575', showHeader: true };
+              };
+
+              const messageHeader = getMessageHeader();
               
               return (
                 <div
@@ -868,13 +914,30 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                   <div 
                     style={{
                       ...getMessageStyle(message.sender_type),
-                      backgroundColor: isForwarded ? config.SENDER_COLORS.forwarded : 
-                        isClientMessage ? config.SENDER_COLORS.client :
-                        isWorkerMessage ? config.SENDER_COLORS.worker :
-                        config.SENDER_COLORS.enterprise
+                      backgroundColor: messageHeader.bgColor,
+                      border: `1px solid ${messageHeader.textColor}20`,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                     }} 
                     className="mw-75 position-relative"
                   >
+                    {/* Message Header */}
+                    {messageHeader.showHeader && (
+                      <div 
+                        className="message-header mb-2 px-2 py-1 rounded-top"
+                        style={{
+                          backgroundColor: messageHeader.textColor,
+                          color: 'white',
+                          fontSize: '0.75rem',
+                          fontWeight: '600',
+                          margin: '-10px -15px 8px -15px',
+                          borderRadius: '11px 11px 0 0',
+                          textAlign: 'center'
+                        }}
+                      >
+                        {messageHeader.text}
+                      </div>
+                    )}
+
                     {isForwarded && (
                       <div 
                         className="forwarded-preview mb-1" 
@@ -934,7 +997,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                             </div>
                           )}
                         </div>
-                      ) : message.content && (message.content.startsWith('Voice message: ') || message.content.startsWith('Video message: ')) ? (
+                      ) : blobUrl ? (
                         <div>
                           <div className="mb-2">
                             <button 
@@ -949,13 +1012,8 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
                           </div>
                         </div>
                       ) : (
-                        message.content.replace(/^Forwarded from (Client|Worker): /, '')
-                      )}
-                      
-                      {/* Show recipient information for all messages */}
-                      {message.recipients && message.recipients.length > 0 && (
-                        <div className="text-muted small mt-1">
-                          Sent to: {message.recipients.join(', ')}
+                        <div style={{ color: messageHeader.textColor, fontWeight: '500' }}>
+                          {message.content.replace(/^Forwarded from (Client|Worker): /, '')}
                         </div>
                       )}
                     </div>

@@ -278,6 +278,10 @@ const App = () => {
     setIsLoggedIn(false);
   };
 
+  const handleOrderUpdate = (updatedOrder) => {
+    setSelectedOrder(updatedOrder);
+  };
+
   return (
     <Router>
       <Routes>
@@ -331,6 +335,7 @@ const App = () => {
                 <OrderDetails
                   order={selectedOrder}
                   onClose={() => setShowOrderDetails(false)}
+                  onOrderUpdate={handleOrderUpdate}
                 />
               )}
 

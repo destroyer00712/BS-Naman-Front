@@ -3,31 +3,44 @@ import { X } from 'lucide-react';
 import config from '../modules/config';
 import { getPrimaryPhone, getWorkerDisplayName, getWorkerByPhone } from '../utils/workerUtils';
 
-const OrderDetails = ({ order, onClose }) => {
+const OrderDetails = ({ order, onClose, onOrderUpdate }) => {
   const [workers, setWorkers] = useState([]);
   const [selectedWorker, setSelectedWorker] = useState('');
   const [isCompleted, setIsCompleted] = useState(order?.jewellery_details?.status === 'completed');
   const [isLoading, setIsLoading] = useState(false);
+  const [currentOrder, setCurrentOrder] = useState(order); // Local state to track order updates
 
   useEffect(() => {
     fetchWorkers();
   }, []);
 
+  // Update local order state when prop changes
+  useEffect(() => {
+    setCurrentOrder(order);
+    setIsCompleted(order?.jewellery_details?.status === 'completed');
+  }, [order]);
+
+  // Helper function to get worker phone from order (handles different field locations)
+  const getWorkerPhoneFromOrder = (order) => {
+    return order?.worker_phone || order?.jewellery_details?.['worker-phone'] || null;
+  };
+
   // Update selectedWorker when workers are loaded and order changes
   useEffect(() => {
-    if (workers.length > 0 && order?.worker_phone) {
-      const assignedWorker = getWorkerByPhone(workers, order.worker_phone);
+    const workerPhone = getWorkerPhoneFromOrder(currentOrder);
+    if (workers.length > 0 && workerPhone) {
+      const assignedWorker = getWorkerByPhone(workers, workerPhone);
       if (assignedWorker) {
         // Set the primary phone of the assigned worker as selected
         setSelectedWorker(getPrimaryPhone(assignedWorker.phones));
       } else {
         // If worker not found, keep the stored phone (might be legacy data)
-        setSelectedWorker(order.worker_phone);
+        setSelectedWorker(workerPhone);
       }
-    } else if (!order?.worker_phone) {
+    } else if (!workerPhone) {
       setSelectedWorker('');
     }
-  }, [workers, order]);
+  }, [workers, currentOrder]);
 
   const fetchWorkers = async () => {
     try {
@@ -206,24 +219,24 @@ const OrderDetails = ({ order, onClose }) => {
     setIsLoading(true);
     try {
       console.log('Updating order with worker:', workerPhone);
-      console.log('Current worker:', order.worker_phone);
+      console.log('Current worker:', currentOrder.worker_phone);
       
       // Fetch worker details to get all associated phone numbers
       const workerDetails = await fetchWorkerDetails(workerPhone);
       
       const updatedOrder = {
         client_details: {
-          phone: order.client_details.phone
+          phone: currentOrder.client_details.phone
         },
         worker_phone: workerPhone,
         jewellery_details: {
-          ...order.jewellery_details,
+          ...currentOrder.jewellery_details,
           status: status
         }
       };
 
       // Use the reassignment API
-      await fetch(`${config.API_ROOT}/api/orders/${order.order_id}/reassign`, {
+      await fetch(`${config.API_ROOT}/api/orders/${currentOrder.order_id}/reassign`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -231,31 +244,29 @@ const OrderDetails = ({ order, onClose }) => {
         body: JSON.stringify(updatedOrder)
       });
 
-      // Only send worker notifications if the worker is actually changing
-      const isWorkerChange = workerPhone !== order.worker_phone;
-      if (isWorkerChange) {
-        console.log('Worker changed, sending notifications');
-        if (order.worker_phone) {
-          // Fetch previous worker's details to get all their phone numbers
-          const previousWorkerDetails = await fetchWorkerDetails(order.worker_phone);
-          console.log('Sending removal notifications to all previous worker phones');
-          // Send removal notifications to all previous worker's phones
-          for (const phone of previousWorkerDetails.phones) {
-            console.log('Sending removal notification to:', phone.phone_number);
-            await sendWorkerRemovedNotification(phone.phone_number, order);
-          }
+      // Note: The /reassign API endpoint handles ALL notifications automatically:
+      // - Termination notifications to the previous worker (if any)
+      // - Assignment notifications to the new worker
+      // No manual notifications needed to avoid duplicates
+      console.log('Order reassigned successfully via API. All notifications handled by backend.');
+
+      // Update local state with the complete order structure
+      const updatedCurrentOrder = {
+        ...currentOrder,
+        worker_phone: workerPhone,
+        jewellery_details: {
+          ...currentOrder.jewellery_details,
+          status: status,
+          'worker-phone': workerPhone // Also update the jewellery_details field for compatibility
         }
-        if (workerPhone) {
-          console.log('Sending assignment notifications to all worker phones');
-          // Send notifications to all worker phones
-          for (const phone of workerDetails.phones) {
-            console.log('Sending assignment notification to:', phone.phone_number);
-            await sendWorkerNotification(phone.phone_number, order);
-          }
-        }
-      } else {
-        console.log('No worker change detected, skipping notifications');
-      }
+      };
+      
+      setCurrentOrder(updatedCurrentOrder);
+      setIsCompleted(status === 'completed');
+
+      // Notify parent component
+      onOrderUpdate && onOrderUpdate(updatedCurrentOrder);
+
     } catch (error) {
       console.error('Error updating order:', error);
     } finally {
@@ -274,29 +285,71 @@ const OrderDetails = ({ order, onClose }) => {
     setIsCompleted(checked);
     
     try {
-      // Update the order status
-      await updateOrder(order.worker_phone, checked ? 'completed' : 'accepted');
-      
-      // If order is being marked as completed, send notifications
       if (checked) {
-        // Send notification to customer
-        await sendCompletionNotification(order.client_details.phone, order);
+        // When marking as completed, use a different approach
+        // Update order status without using reassignment API
+        const updatedOrder = {
+          client_details: {
+            phone: currentOrder.client_details.phone
+          },
+          worker_phone: getWorkerPhoneFromOrder(currentOrder),
+          jewellery_details: {
+            ...currentOrder.jewellery_details,
+            status: 'completed'
+          }
+        };
+
+        // Use regular order update API instead of reassignment
+        const response = await fetch(`${config.API_ROOT}/api/orders/${currentOrder.order_id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedOrder)
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update order status');
+        }
+
+        // Send completion notifications to both client and worker
+        console.log('Order marked as completed, sending completion notifications');
         
-        // Send notification to all worker phones if there is one assigned
-        if (order.worker_phone) {
+        // Send notification to customer
+        await sendCompletionNotification(currentOrder.client_details.phone, currentOrder);
+        
+        // Send notification to assigned worker (all phone numbers)
+        const workerPhone = getWorkerPhoneFromOrder(currentOrder);
+        if (workerPhone) {
           try {
-            const workerDetails = await fetchWorkerDetails(order.worker_phone);
+            const workerDetails = await fetchWorkerDetails(workerPhone);
             console.log('Sending completion notifications to all worker phones');
             for (const phone of workerDetails.phones) {
               console.log('Sending completion notification to:', phone.phone_number);
-              await sendCompletionNotification(phone.phone_number, order);
+              await sendCompletionNotification(phone.phone_number, currentOrder);
             }
           } catch (error) {
             console.error('Error fetching worker details for completion notification:', error);
             // Fallback to sending to the stored phone number
-            await sendCompletionNotification(order.worker_phone, order);
+            await sendCompletionNotification(workerPhone, currentOrder);
           }
         }
+
+        // Update local state
+        const updatedCurrentOrder = {
+          ...currentOrder,
+          jewellery_details: {
+            ...currentOrder.jewellery_details,
+            status: 'completed'
+          }
+        };
+        
+        setCurrentOrder(updatedCurrentOrder);
+        onOrderUpdate && onOrderUpdate(updatedCurrentOrder);
+
+      } else {
+        // When unchecking completed status, use the regular updateOrder function
+        await updateOrder(getWorkerPhoneFromOrder(currentOrder), 'accepted');
       }
     } catch (error) {
       console.error('Error in status update process:', error);
@@ -305,7 +358,7 @@ const OrderDetails = ({ order, onClose }) => {
     }
   };
 
-  if (!order) return null;
+  if (!currentOrder) return null;
 
   return (
     <div className="modal-overlay" style={{
@@ -324,7 +377,7 @@ const OrderDetails = ({ order, onClose }) => {
         <div className="modal-header border-bottom p-3 d-flex justify-content-between align-items-center">
           <div>
             <h5 className="mb-0">Order Details</h5>
-            <small className="text-muted">Order ID: {order.order_id}</small>
+            <small className="text-muted">Order ID: {currentOrder.order_id}</small>
           </div>
           <button className="btn btn-light rounded-circle" onClick={onClose}>
             <X size={20} />
@@ -334,8 +387,8 @@ const OrderDetails = ({ order, onClose }) => {
         <div className="modal-body p-4">
           <div className="mb-4">
             <h6 className="text-muted mb-2">Order Information</h6>
-            <p className="mb-1"><strong>Created:</strong> {new Date(order.created_at).toLocaleString()}</p>
-            <p className="mb-1"><strong>Updated:</strong> {new Date(order.updated_at).toLocaleString()}</p>
+            <p className="mb-1"><strong>Created:</strong> {new Date(currentOrder.created_at).toLocaleString()}</p>
+            <p className="mb-1"><strong>Updated:</strong> {new Date(currentOrder.updated_at).toLocaleString()}</p>
           </div>
 
           <div className="mb-4">
@@ -343,11 +396,11 @@ const OrderDetails = ({ order, onClose }) => {
             <div className="mb-3 p-3 bg-light rounded">
               <div className="d-flex justify-content-between align-items-center">
                 <span><strong>Currently Assigned:</strong></span>
-                <span className={`badge ${order?.worker_phone ? 'bg-success' : 'bg-secondary'}`}>
-                  {order?.worker_phone ? (
+                <span className={`badge ${getWorkerPhoneFromOrder(currentOrder) ? 'bg-success' : 'bg-secondary'}`}>
+                  {getWorkerPhoneFromOrder(currentOrder) ? (
                     (() => {
-                      const assignedWorker = getWorkerByPhone(workers, order.worker_phone);
-                      return assignedWorker ? getWorkerDisplayName(assignedWorker) : order.worker_phone;
+                      const assignedWorker = getWorkerByPhone(workers, getWorkerPhoneFromOrder(currentOrder));
+                      return assignedWorker ? getWorkerDisplayName(assignedWorker) : getWorkerPhoneFromOrder(currentOrder);
                     })()
                   ) : (
                     'Not Assigned'
@@ -363,7 +416,7 @@ const OrderDetails = ({ order, onClose }) => {
             >
               <option value="">Select a worker</option>
               {workers.map((worker) => {
-                const isCurrentlyAssigned = getWorkerByPhone([worker], order?.worker_phone);
+                const isCurrentlyAssigned = getWorkerByPhone([worker], getWorkerPhoneFromOrder(currentOrder));
                 return (
                   <option key={worker.id} value={getPrimaryPhone(worker.phones)}>
                     {getWorkerDisplayName(worker)}{isCurrentlyAssigned ? ' (Currently Assigned)' : ''}
@@ -400,15 +453,15 @@ const OrderDetails = ({ order, onClose }) => {
 
           <div className="mb-4">
             <h6 className="text-muted mb-2">Jewellery Details</h6>
-            <p className="mb-1"><strong>Name:</strong> {order.jewellery_details.name}</p>
-            <p className="mb-1"><strong>Melting:</strong> {order.jewellery_details.melting}</p>
-            <p className="mb-1"><strong>Weight:</strong> {order.jewellery_details.weight}</p>
-            <p className="mb-1"><strong>Special Instructions:</strong> {order.jewellery_details.special}</p>
+            <p className="mb-1"><strong>Name:</strong> {currentOrder.jewellery_details.name}</p>
+            <p className="mb-1"><strong>Melting:</strong> {currentOrder.jewellery_details.melting}</p>
+            <p className="mb-1"><strong>Weight:</strong> {currentOrder.jewellery_details.weight}</p>
+            <p className="mb-1"><strong>Special Instructions:</strong> {currentOrder.jewellery_details.special}</p>
           </div>
 
           <div>
             <h6 className="text-muted mb-2">Client Details</h6>
-            <p className="mb-1"><strong>Phone:</strong> {order.client_details.phone}</p>
+            <p className="mb-1"><strong>Phone:</strong> {currentOrder.client_details.phone}</p>
           </div>
         </div>
       </div>
