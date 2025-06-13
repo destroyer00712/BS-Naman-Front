@@ -106,11 +106,20 @@ const SendMessageModal = ({
   // Optimized function to send messages to workers
   const sendMessagesToWorkers = async () => {
     console.log(`[Workers] 🚀 Starting to send messages to all workers for order: ${selectedOrder.order_id}`);
+    console.log(`[Workers] Function parameters:`, {
+      selectedOrderId: selectedOrder?.order_id,
+      message: message,
+      messageLength: message?.length,
+      recipientType: recipientType
+    });
     
     try {
       // Fetch all workers from the general API endpoint
       console.log(`[Workers] Fetching all workers from API...`);
+      console.log(`[Workers] API URL: ${config.API_ROOT}/api/workers`);
+      
       const workerResponse = await fetch(`${config.API_ROOT}/api/workers`);
+      console.log(`[Workers] API Response status: ${workerResponse.status} ${workerResponse.statusText}`);
       
       if (!workerResponse.ok) {
         console.error(`[Workers] ❌ Failed to fetch workers: ${workerResponse.status} ${workerResponse.statusText}`);
@@ -119,27 +128,43 @@ const SendMessageModal = ({
       
       const workerData = await workerResponse.json();
       console.log(`[Workers] Raw worker data received:`, workerData);
+      console.log(`[Workers] Worker data type:`, typeof workerData);
+      console.log(`[Workers] Worker data keys:`, Object.keys(workerData || {}));
       
       // Handle the workers response format
       const workers = workerData.workers || [];
       console.log(`[Workers] Processed workers array:`, workers);
+      console.log(`[Workers] Workers array type:`, typeof workers);
+      console.log(`[Workers] Is workers an array:`, Array.isArray(workers));
       console.log(`[Workers] Total workers found: ${workers.length}`);
       
       if (workers.length === 0) {
         console.warn(`[Workers] ⚠️ No workers found to send messages to`);
+        console.log(`[Workers] Worker data was:`, workerData);
         return false;
       }
 
       const allSendPromises = [];
       let totalPhoneNumbers = 0;
       let validPhoneNumbers = 0;
+      let processedWorkers = 0;
+      let skippedWorkers = 0;
+      
+      console.log(`[Workers] Starting worker processing loop...`);
       
       for (const [index, worker] of workers.entries()) {
-        console.log(`[Workers] Processing worker ${index + 1}/${workers.length}: ${worker.name} (ID: ${worker.id})`);
+        console.log(`[Workers] =====================================`);
+        console.log(`[Workers] Processing worker ${index + 1}/${workers.length}:`);
+        console.log(`[Workers] Worker object:`, worker);
+        console.log(`[Workers] Worker ID: ${worker.id}`);
+        console.log(`[Workers] Worker name: ${worker.name}`);
+        console.log(`[Workers] Worker phones:`, worker.phones);
         
         if (!worker.phones || !Array.isArray(worker.phones)) {
           console.warn(`[Workers] ⚠️ Worker ${worker.name} has no phones array or phones is not an array`);
           console.log(`[Workers] Worker phones data:`, worker.phones);
+          console.log(`[Workers] Worker phones type:`, typeof worker.phones);
+          skippedWorkers++;
           continue;
         }
         
@@ -148,46 +173,92 @@ const SendMessageModal = ({
         
         // Log all phone numbers for this worker
         worker.phones.forEach((phone, phoneIndex) => {
-          console.log(`[Workers] Phone ${phoneIndex + 1}: ${phone.phone_number} (Primary: ${phone.is_primary})`);
+          console.log(`[Workers] Phone ${phoneIndex + 1}:`, phone);
+          console.log(`[Workers]   - Number: ${phone.phone_number}`);
+          console.log(`[Workers]   - Primary: ${phone.is_primary}`);
+          console.log(`[Workers]   - Phone object keys:`, Object.keys(phone || {}));
         });
         
         // Filter valid phone numbers
+        console.log(`[Workers] Starting phone validation for ${worker.name}...`);
         const validPhones = worker.phones.filter(phone => {
+          console.log(`[Workers] Validating phone:`, phone);
           const isValid = isValidPhoneNumber(phone.phone_number);
-          console.log(`[Workers] Phone ${phone.phone_number} validation: ${isValid ? '✅ Valid' : '❌ Invalid'}`);
+          console.log(`[Workers] Phone ${phone.phone_number} validation result: ${isValid ? '✅ Valid' : '❌ Invalid'}`);
+          if (!isValid) {
+            console.log(`[Workers] Invalid phone details:`, {
+              phoneNumber: phone.phone_number,
+              phoneType: typeof phone.phone_number,
+              phoneLength: phone.phone_number?.length,
+              containsDefault: phone.phone_number?.includes('DEFAULT_')
+            });
+          }
           return isValid;
         });
 
         validPhoneNumbers += validPhones.length;
         console.log(`[Workers] Worker ${worker.name}: ${validPhones.length}/${worker.phones.length} phone numbers are valid`);
+        console.log(`[Workers] Valid phones for ${worker.name}:`, validPhones);
 
         if (validPhones.length === 0) {
           console.warn(`[Workers] ⚠️ No valid phone numbers found for worker: ${worker.name}`);
+          skippedWorkers++;
           continue;
         }
 
+        processedWorkers++;
         console.log(`[Workers] 📱 Preparing to send messages to worker: ${worker.name} with ${validPhones.length} valid phone numbers`);
 
         // Send to ALL valid phone numbers for this worker
         const workerSendPromises = validPhones.map(async (phone, phoneIndex) => {
-          console.log(`[Workers] Sending message ${phoneIndex + 1}/${validPhones.length} to ${worker.name} at ${phone.phone_number}`);
+          console.log(`[Workers] Creating promise ${phoneIndex + 1}/${validPhones.length} for ${worker.name} at ${phone.phone_number}`);
           
-          const success = await sendWhatsAppMessage(phone.phone_number, selectedOrder.order_id, message);
-          
-          const result = {
-            workerId: worker.id,
-            workerName: worker.name,
-            phoneNumber: phone.phone_number,
-            isPrimary: phone.is_primary,
-            success: success
-          };
-          
-          console.log(`[Workers] Message result for ${worker.name} (${phone.phone_number}):`, result);
-          return result;
+          try {
+            console.log(`[Workers] About to call sendWhatsAppMessage for:`, {
+              phoneNumber: phone.phone_number,
+              orderId: selectedOrder.order_id,
+              message: message,
+              workerName: worker.name
+            });
+            
+            const success = await sendWhatsAppMessage(phone.phone_number, selectedOrder.order_id, message);
+            
+            const result = {
+              workerId: worker.id,
+              workerName: worker.name,
+              phoneNumber: phone.phone_number,
+              isPrimary: phone.is_primary,
+              success: success
+            };
+            
+            console.log(`[Workers] Message result for ${worker.name} (${phone.phone_number}):`, result);
+            return result;
+          } catch (error) {
+            console.error(`[Workers] Error in promise for ${worker.name} (${phone.phone_number}):`, error);
+            return {
+              workerId: worker.id,
+              workerName: worker.name,
+              phoneNumber: phone.phone_number,
+              isPrimary: phone.is_primary,
+              success: false,
+              error: error.message
+            };
+          }
         });
 
+        console.log(`[Workers] Created ${workerSendPromises.length} promises for worker ${worker.name}`);
         allSendPromises.push(...workerSendPromises);
+        console.log(`[Workers] Total promises so far: ${allSendPromises.length}`);
       }
+
+      console.log(`[Workers] =====================================`);
+      console.log(`[Workers] Worker processing complete. Summary:`);
+      console.log(`[Workers]   - Total workers: ${workers.length}`);
+      console.log(`[Workers]   - Processed workers: ${processedWorkers}`);
+      console.log(`[Workers]   - Skipped workers: ${skippedWorkers}`);
+      console.log(`[Workers]   - Total phone numbers: ${totalPhoneNumbers}`);
+      console.log(`[Workers]   - Valid phone numbers: ${validPhoneNumbers}`);
+      console.log(`[Workers]   - Total promises created: ${allSendPromises.length}`);
 
       if (allSendPromises.length === 0) {
         console.warn(`[Workers] ⚠️ No valid phone numbers found across all workers`);
@@ -195,15 +266,20 @@ const SendMessageModal = ({
         return false;
       }
 
-      console.log(`[Workers] 📤 Sending messages to ${allSendPromises.length} phone numbers across ${workers.length} workers`);
+      console.log(`[Workers] 📤 Sending messages to ${allSendPromises.length} phone numbers across ${processedWorkers} workers`);
       console.log(`[Workers] Phone number summary: ${totalPhoneNumbers} total, ${validPhoneNumbers} valid, ${allSendPromises.length} messages to send`);
 
       // Execute all send operations in parallel
       console.log(`[Workers] Executing all WhatsApp message sends in parallel...`);
+      console.log(`[Workers] Promise array length before Promise.all: ${allSendPromises.length}`);
+      
       const startTime = Date.now();
       const allResults = await Promise.all(allSendPromises);
       const endTime = Date.now();
+      
       console.log(`[Workers] All message sends completed in ${endTime - startTime}ms`);
+      console.log(`[Workers] Results array length: ${allResults.length}`);
+      console.log(`[Workers] All results:`, allResults);
       
       // Group results by worker
       const workerResults = {};
@@ -222,7 +298,8 @@ const SendMessageModal = ({
         workerResults[result.workerId].phoneResults.push({
           phoneNumber: result.phoneNumber,
           isPrimary: result.isPrimary,
-          success: result.success
+          success: result.success,
+          error: result.error || null
         });
         workerResults[result.workerId].totalPhones++;
         if (result.success) {
@@ -239,7 +316,8 @@ const SendMessageModal = ({
         worker.phoneResults.forEach(phone => {
           const status = phone.success ? '✅' : '❌';
           const primaryText = phone.isPrimary ? ' (Primary)' : '';
-          console.log(`[Workers]   ${status} ${phone.phoneNumber}${primaryText}`);
+          const errorText = phone.error ? ` - Error: ${phone.error}` : '';
+          console.log(`[Workers]   ${status} ${phone.phoneNumber}${primaryText}${errorText}`);
         });
       });
       
@@ -248,13 +326,15 @@ const SendMessageModal = ({
       const workersWithSuccess = Object.values(workerResults).filter(worker => worker.successCount > 0).length;
       const totalMessages = allResults.length;
       const successfulMessages = allResults.filter(result => result.success).length;
+      const failedMessages = allResults.filter(result => !result.success).length;
       
       console.log(`[Workers] 📈 Final Summary:`);
       console.log(`[Workers]   • Workers processed: ${totalWorkers}`);
       console.log(`[Workers]   • Workers with successful messages: ${workersWithSuccess}`);
       console.log(`[Workers]   • Total messages attempted: ${totalMessages}`);
       console.log(`[Workers]   • Successful messages: ${successfulMessages}`);
-      console.log(`[Workers]   • Success rate: ${((successfulMessages/totalMessages) * 100).toFixed(1)}%`);
+      console.log(`[Workers]   • Failed messages: ${failedMessages}`);
+      console.log(`[Workers]   • Success rate: ${totalMessages > 0 ? ((successfulMessages/totalMessages) * 100).toFixed(1) : 0}%`);
       
       const overallSuccess = Object.values(workerResults).some(worker => worker.successCount > 0);
       console.log(`[Workers] ${overallSuccess ? '✅ Overall Success' : '❌ Overall Failure'}: At least one message was sent successfully: ${overallSuccess}`);
@@ -267,7 +347,8 @@ const SendMessageModal = ({
       console.error(`[Workers] Error details:`, {
         message: error.message,
         stack: error.stack,
-        selectedOrderId: selectedOrder?.order_id
+        selectedOrderId: selectedOrder?.order_id,
+        configApiRoot: config.API_ROOT
       });
       return false;
     }
