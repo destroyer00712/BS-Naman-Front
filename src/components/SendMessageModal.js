@@ -106,6 +106,7 @@ const SendMessageModal = ({
   // Optimized function to send messages to workers
   const sendMessagesToWorkers = async () => {
     console.log(`[Workers] 🚀 Starting to send messages to all workers for order: ${selectedOrder.order_id}`);
+    alert(`[DEBUG] sendMessagesToWorkers function called for order: ${selectedOrder.order_id}`);
     console.log(`[Workers] Function parameters:`, {
       selectedOrderId: selectedOrder?.order_id,
       message: message,
@@ -386,32 +387,101 @@ const SendMessageModal = ({
   };
 
   const handleSend = async () => {
+    console.log(`[MAIN] 🚀 handleSend function called`);
+    console.log(`[MAIN] Current state:`, {
+      recipientType: recipientType,
+      message: message,
+      messageLength: message?.length,
+      selectedOrder: selectedOrder?.order_id,
+      isSending: isSending
+    });
+
+    if (!recipientType) {
+      console.error(`[MAIN] ❌ No recipient type selected`);
+      alert('Please select a recipient type');
+      return;
+    }
+
+    if (!message || message.trim() === '') {
+      console.error(`[MAIN] ❌ No message content provided`);
+      alert('Please enter a message');
+      return;
+    }
+
     setIsSending(true);
     let success = true;
+    console.log(`[MAIN] Starting message send process...`);
 
     try {
+      // Client message sending
       if (recipientType === 'client' || recipientType === 'both') {
+        console.log(`[MAIN] 📱 Sending message to client...`);
+        console.log(`[MAIN] Client phone:`, selectedOrder.client_details?.phone);
+        
         const clientSuccess = await sendWhatsAppMessage(selectedOrder.client_details.phone, selectedOrder.order_id, message);
+        console.log(`[MAIN] Client message result:`, clientSuccess);
         success = success && clientSuccess;
+        console.log(`[MAIN] Overall success after client: ${success}`);
+      } else {
+        console.log(`[MAIN] ⏭️ Skipping client message (recipient type: ${recipientType})`);
       }
 
+      // Worker message sending
       if (recipientType === 'worker' || recipientType === 'both') {
-        const workerSuccess = await sendMessagesToWorkers();
-        success = success && workerSuccess;
+        console.log(`[MAIN] 👷 About to send message to workers...`);
+        console.log(`[MAIN] Calling sendMessagesToWorkers function...`);
+        
+        try {
+          const workerSuccess = await sendMessagesToWorkers();
+          console.log(`[MAIN] Worker message result:`, workerSuccess);
+          success = success && workerSuccess;
+          console.log(`[MAIN] Overall success after workers: ${success}`);
+        } catch (workerError) {
+          console.error(`[MAIN] ❌ Error in sendMessagesToWorkers:`, workerError);
+          success = false;
+        }
+      } else {
+        console.log(`[MAIN] ⏭️ Skipping worker message (recipient type: ${recipientType})`);
       }
+
+      console.log(`[MAIN] All message sending complete. Final success status: ${success}`);
 
       if (success) {
-        await saveMessage();
-        socket.emit('newMessage', { orderId: selectedOrder.order_id, message });
-        onMessageSent();
-        onClose();
+        console.log(`[MAIN] ✅ All messages sent successfully, saving message to database...`);
+        
+        try {
+          const saveSuccess = await saveMessage();
+          console.log(`[MAIN] Save message result:`, saveSuccess);
+          
+          if (saveSuccess) {
+            console.log(`[MAIN] 📡 Emitting socket event...`);
+            socket.emit('newMessage', { orderId: selectedOrder.order_id, message });
+            console.log(`[MAIN] 🎉 Process complete, calling callbacks...`);
+            onMessageSent();
+            onClose();
+          } else {
+            console.error(`[MAIN] ❌ Failed to save message to database`);
+            alert('Messages sent but failed to save to database');
+          }
+        } catch (saveError) {
+          console.error(`[MAIN] ❌ Error saving message:`, saveError);
+          alert('Messages sent but failed to save to database');
+        }
       } else {
+        console.error(`[MAIN] ❌ Failed to send message to one or more recipients`);
         alert('Failed to send message to one or more recipients');
       }
     } catch (error) {
-      console.error('Error in send process:', error);
+      console.error(`[MAIN] ❌ Critical error in send process:`, error);
+      console.error(`[MAIN] Error details:`, {
+        message: error.message,
+        stack: error.stack,
+        recipientType,
+        selectedOrderId: selectedOrder?.order_id
+      });
       alert('An error occurred while sending the message');
     } finally {
+      console.log(`[MAIN] 🏁 Setting isSending to false`);
       setIsSending(false);
     }
   };
