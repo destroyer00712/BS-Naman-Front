@@ -106,7 +106,6 @@ const SendMessageModal = ({
   // Optimized function to send messages to workers
   const sendMessagesToWorkers = async () => {
     console.log(`[Workers] 🚀 Starting to send messages to all workers for order: ${selectedOrder.order_id}`);
-    alert(`[DEBUG] sendMessagesToWorkers function called for order: ${selectedOrder.order_id}`);
     console.log(`[Workers] Function parameters:`, {
       selectedOrderId: selectedOrder?.order_id,
       message: message,
