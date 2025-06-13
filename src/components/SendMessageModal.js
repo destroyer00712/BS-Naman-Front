@@ -105,13 +105,12 @@ const SendMessageModal = ({
 
   // Optimized function to send messages to workers
   const sendMessagesToWorkers = async () => {
-    console.log(`[Workers] 🚀 Starting to send messages to workers for order: ${selectedOrder.order_id}`);
-    console.log(`[Workers] Selected order worker phone: ${selectedOrder.worker_phone}`);
+    console.log(`[Workers] 🚀 Starting to send messages to all workers for order: ${selectedOrder.order_id}`);
     
     try {
-      // Fetch workers associated with this specific order
-      console.log(`[Workers] Fetching workers from API...`);
-      const workerResponse = await fetch(`${config.API_ROOT}/api/workers/${selectedOrder.worker_phone}`);
+      // Fetch all workers from the general API endpoint
+      console.log(`[Workers] Fetching all workers from API...`);
+      const workerResponse = await fetch(`${config.API_ROOT}/api/workers`);
       
       if (!workerResponse.ok) {
         console.error(`[Workers] ❌ Failed to fetch workers: ${workerResponse.status} ${workerResponse.statusText}`);
@@ -121,8 +120,8 @@ const SendMessageModal = ({
       const workerData = await workerResponse.json();
       console.log(`[Workers] Raw worker data received:`, workerData);
       
-      // Handle both single worker and multiple workers response format
-      const workers = workerData.workers || [workerData.worker] || [];
+      // Handle the workers response format
+      const workers = workerData.workers || [];
       console.log(`[Workers] Processed workers array:`, workers);
       console.log(`[Workers] Total workers found: ${workers.length}`);
       
@@ -268,8 +267,7 @@ const SendMessageModal = ({
       console.error(`[Workers] Error details:`, {
         message: error.message,
         stack: error.stack,
-        selectedOrderId: selectedOrder?.order_id,
-        selectedWorkerPhone: selectedOrder?.worker_phone
+        selectedOrderId: selectedOrder?.order_id
       });
       return false;
     }
