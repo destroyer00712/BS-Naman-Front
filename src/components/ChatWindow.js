@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import config from '../modules/config';
-import { Info, Plus, Send, Mic, Forward } from 'lucide-react';
+import { Info, Plus, Send, Mic, Image, Forward } from 'lucide-react';
 import WorkerModal from './WorkerModal';
 import VoiceMessageDialog from './VoiceMessageDialog';
+import ImageMessageDialog from './ImageMessageDialog';
 import MediaViewer from './MediaViewer';
 import SendMessageModal from './SendMessageModal';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -14,6 +15,7 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
   const [showWorkerModal, setShowWorkerModal] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const [activeMedia, setActiveMedia] = useState(null);
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
   const [clientName, setClientName] = useState('');
@@ -915,6 +917,12 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
             >
               <Mic size={20} />
             </button>
+            <button 
+              className="btn btn-light"
+              onClick={() => setShowImageModal(true)}
+            >
+              <Image size={20} />
+            </button>
           </div>
         </div>
       </div>
@@ -948,6 +956,13 @@ const ChatWindow = ({ selectedOrder, onInfoClick }) => {
       <VoiceMessageDialog
         show={showVoiceModal}
         onClose={() => setShowVoiceModal(false)}
+        selectedOrder={selectedOrder}
+      />
+
+      {/* Image Message Modal */}
+      <ImageMessageDialog
+        show={showImageModal}
+        onClose={() => setShowImageModal(false)}
         selectedOrder={selectedOrder}
       />
     </>
